@@ -968,8 +968,7 @@ protectedRouter.get(
       .select()
       .from(applicationsTable)
       .where(filters.length ? and(...filters) : undefined)
-      .orderBy(desc(applicationsTable.submittedAt))
-      .limit(250);
+      .orderBy(desc(applicationsTable.submittedAt));
     response.json(records.map(applicationRecord));
   },
 );
