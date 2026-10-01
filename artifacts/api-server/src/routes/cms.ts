@@ -1,0 +1,962 @@
+import {
+  randomBytes,
+  randomUUID,
+  scryptSync,
+  timingSafeEqual,
+} from "node:crypto";
+import {
+  Router,
+  type IRouter,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import {
+  AdminLoginBody,
+  AdminLoginResponse,
+  AdminLogoutResponse,
+  ChangeAdminPasswordBody,
+  ChangeAdminPasswordResponse,
+  CheckApplicationStatusQueryParams,
+  CheckApplicationStatusResponse,
+  CreateAdminContentBody,
+  CreateAdminContentQueryParams,
+  CreateAdminContentResponse,
+  CreateAdminUserBody,
+  CreateAdminUserResponse,
+  DeleteAdminUserParams,
+  DeleteAdminUserResponse,
+  DeleteAdminContentParams,
+  DeleteAdminContentResponse,
+  GetAdminApplicationsQueryParams,
+  GetAdminContentQueryParams,
+  GetAdminMessagesResponse,
+  GetAdminOverviewResponse,
+  GetAdminSessionResponse,
+  GetAdminSiteResponse,
+  GetAdminUsersResponse,
+  GetPublicContentItemParams,
+  GetPublicContentItemResponse,
+  GetPublicContentQueryParams,
+  GetPublicContentResponse,
+  GetSiteResponse,
+  MarkAdminMessageReadParams,
+  MarkAdminMessageReadResponse,
+  SendContactMessageBody,
+  SendContactMessageResponse,
+  SubmitApplicationBody,
+  SubmitApplicationResponse,
+  UpdateAdminContentBody,
+  UpdateAdminContentParams,
+  UpdateAdminContentResponse,
+  UpdateAdminSiteBody,
+  UpdateAdminSiteResponse,
+  UpdateAdminUserRoleBody,
+  UpdateAdminUserRoleParams,
+  UpdateAdminUserRoleResponse,
+  UpdateApplicationStatusBody,
+  UpdateApplicationStatusParams,
+  UpdateApplicationStatusResponse,
+} from "@workspace/api-zod";
+import {
+  adminSessionsTable,
+  adminUsersTable,
+  applicationsTable,
+  contactMessagesTable,
+  contentItemsTable,
+  db,
+  siteDataTable,
+} from "@workspace/db";
+import {
+  clearAdminCookie,
+  createAdminSession,
+  getAdminSession,
+  issueAdminCookie,
+  removeAdminSession,
+  requireAdmin,
+  type AdminSession,
+} from "../lib/adminSession";
+
+const router: IRouter = Router();
+const protectedRouter: IRouter = Router();
+const contentCollections = new Set([
+  "programs",
+  "news",
+  "events",
+  "gallery",
+  "people",
+  "notices",
+  "faq",
+  "testimonials",
+  "pages",
+  "menu",
+]);
+
+const defaultSiteData = {
+  settings: {
+    siteName: { bn: "চাটখিল আর.সি.ওয়াই ইউনিট", en: "Chatkhil RCY Unit" },
+    collegeName: {
+      bn: "চাটখিল পাঁচগাঁও মাহবুব সরকারি কলেজ",
+      en: "Chatkhil Panchgaon Mahbub Government College",
+    },
+    email: "Chatkhilcollege2023@gmail.com",
+    phone: "032275002",
+    website: "cmpe.edu.bd",
+    address: {
+      bn: "চাটখিল, নোয়াখালী, বাংলাদেশ",
+      en: "Chatkhil, Noakhali, Bangladesh",
+    },
+  },
+  home: {},
+};
+
+function asIso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function publicContentItem(item: typeof contentItemsTable.$inferSelect) {
+  return {
+    ...item,
+    updatedAt: asIso(item.updatedAt),
+  };
+}
+
+function applicationRecord(item: typeof applicationsTable.$inferSelect) {
+  return {
+    id: item.id,
+    applicationId: item.applicationId,
+    academicYear: item.academicYear,
+    name: item.name,
+    rollNo: item.rollNo,
+    guardianMobile: item.guardianMobile,
+    photoPath: item.photoPath,
+    status: item.status as "pending" | "approved" | "rejected",
+    note: item.note,
+    submittedAt: asIso(item.submittedAt),
+    data: item.data,
+  };
+}
+
+function contactMessage(item: typeof contactMessagesTable.$inferSelect) {
+  return {
+    ...item,
+    createdAt: asIso(item.createdAt),
+  };
+}
+
+function recordId(request: Request, key = "id"): string | null {
+  const raw = request.params[key];
+  return typeof raw === "string" ? raw : raw?.[0] ?? null;
+}
+
+function isMobileNumber(value: string): boolean {
+  return /^01[0-9]{9}$/.test(value);
+}
+
+function isValidAge(dateValue: Date | string): boolean {
+  const dob =
+    dateValue instanceof Date
+      ? dateValue
+      : new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(dob.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDelta = today.getMonth() - dob.getMonth();
+  if (
+    monthDelta < 0 ||
+    (monthDelta === 0 && today.getDate() < dob.getDate())
+  ) {
+    age -= 1;
+  }
+  return age >= 16;
+}
+
+function matchesPassword(password: string, storedHash: string): boolean {
+  const [algorithm, saltHex, digestHex] = storedHash.split("$");
+  if (
+    algorithm !== "scrypt" ||
+    !saltHex ||
+    !digestHex ||
+    !/^[a-f0-9]{32}$/i.test(saltHex) ||
+    !/^[a-f0-9]{128}$/i.test(digestHex)
+  ) {
+    return false;
+  }
+  const expected = Buffer.from(digestHex, "hex");
+  const actual = scryptSync(password, Buffer.from(saltHex, "hex"), 64);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const digest = scryptSync(password, salt, 64);
+  return `scrypt$${salt.toString("hex")}$${digest.toString("hex")}`;
+}
+
+function adminRole(role: string): AdminSession["role"] {
+  return role === "editor" ? "editor" : "super_admin";
+}
+
+function validateCollection(value: unknown): value is string {
+  return typeof value === "string" && contentCollections.has(value);
+}
+
+function requireSuperAdmin(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): void {
+  const admin = response.locals.admin as AdminSession | undefined;
+  if (!admin || admin.role !== "super_admin") {
+    response.status(403).json({ error: "Super Admin access required" });
+    return;
+  }
+  next();
+}
+
+router.get("/site", async (_request, response): Promise<void> => {
+  const [site] = await db
+    .select()
+    .from(siteDataTable)
+    .where(eq(siteDataTable.key, "main"))
+    .limit(1);
+  response.json(
+    GetSiteResponse.parse(
+      site
+        ? { settings: site.settings, home: site.home }
+        : defaultSiteData,
+    ),
+  );
+});
+
+router.get("/content", async (request, response): Promise<void> => {
+  const parsed = GetPublicContentQueryParams.safeParse(request.query);
+  if (!parsed.success || !validateCollection(parsed.data.collection)) {
+    response.status(400).json({ error: "Unknown content collection" });
+    return;
+  }
+  const items = await db
+    .select()
+    .from(contentItemsTable)
+    .where(
+      and(
+        eq(contentItemsTable.collection, parsed.data.collection),
+        eq(contentItemsTable.status, "published"),
+      ),
+    )
+    .orderBy(contentItemsTable.position, desc(contentItemsTable.updatedAt));
+  response.json(
+    GetPublicContentResponse.parse(items.map(publicContentItem)),
+  );
+});
+
+router.get("/content/:slug", async (request, response): Promise<void> => {
+  const parsed = GetPublicContentItemParams.safeParse(request.params);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Invalid content slug" });
+    return;
+  }
+  const [item] = await db
+    .select()
+    .from(contentItemsTable)
+    .where(
+      and(
+        eq(contentItemsTable.slug, parsed.data.slug),
+        eq(contentItemsTable.status, "published"),
+      ),
+    )
+    .limit(1);
+  if (!item) {
+    response.status(404).json({ error: "Content not found" });
+    return;
+  }
+  response.json(
+    GetPublicContentItemResponse.parse(publicContentItem(item)),
+  );
+});
+
+router.post("/applications", async (request, response): Promise<void> => {
+  const parsed = SubmitApplicationBody.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const data = parsed.data;
+  if (!isMobileNumber(data.guardianMobile)) {
+    response.status(400).json({ error: "Use a Bangladeshi mobile number in 01XXXXXXXXX format." });
+    return;
+  }
+  if (!isValidAge(data.dateOfBirth)) {
+    response.status(400).json({ error: "Applicants must be at least 16 years old." });
+    return;
+  }
+  const applicationId = `RCY-${new Date().getFullYear()}-${randomUUID()
+    .replaceAll("-", "")
+    .slice(0, 8)
+    .toUpperCase()}`;
+  try {
+    const [record] = await db
+      .insert(applicationsTable)
+      .values({
+        id: randomUUID(),
+        applicationId,
+        academicYear: data.academicYear,
+        rollNo: data.rollNo,
+        name: data.name,
+        guardianMobile: data.guardianMobile,
+        photoPath: data.photoPath,
+        data: data as Record<string, unknown>,
+      })
+      .returning();
+    response.status(201).json(
+      SubmitApplicationResponse.parse({
+        applicationId: record.applicationId,
+        status: record.status,
+        submittedAt: record.submittedAt.toISOString(),
+      }),
+    );
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      response.status(409).json({
+        error: "An application already exists for this roll number and academic year.",
+      });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.get("/applications/status", async (request, response): Promise<void> => {
+  const parsed = CheckApplicationStatusQueryParams.safeParse(request.query);
+  if (!parsed.success || !isMobileNumber(parsed.data.mobile)) {
+    response.status(400).json({ error: "Enter a valid application ID and mobile number." });
+    return;
+  }
+  const [record] = await db
+    .select()
+    .from(applicationsTable)
+    .where(
+      and(
+        eq(applicationsTable.applicationId, parsed.data.applicationId),
+        eq(applicationsTable.guardianMobile, parsed.data.mobile),
+      ),
+    )
+    .limit(1);
+  if (!record) {
+    response.status(404).json({ error: "Application not found" });
+    return;
+  }
+  response.json(
+    CheckApplicationStatusResponse.parse({
+      applicationId: record.applicationId,
+      status: record.status,
+      note: record.note,
+      submittedAt: record.submittedAt.toISOString(),
+    }),
+  );
+});
+
+router.post("/contact", async (request, response): Promise<void> => {
+  const parsed = SendContactMessageBody.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const data = parsed.data;
+  await db.insert(contactMessagesTable).values({
+    id: randomUUID(),
+    name: data.name.trim(),
+    email: data.email.trim().toLowerCase(),
+    phone: data.phone?.trim() || null,
+    subject: data.subject.trim(),
+    message: data.message.trim(),
+  });
+  response.status(201).json(
+    SendContactMessageResponse.parse({
+      success: true,
+      message: "Your message has been received.",
+    }),
+  );
+});
+
+router.post("/admin/auth/login", async (request, response): Promise<void> => {
+  const parsed = AdminLoginBody.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Enter your email and password." });
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+  const [existingUser] = await db
+    .select()
+    .from(adminUsersTable)
+    .where(eq(adminUsersTable.email, email))
+    .limit(1);
+  let user = existingUser;
+  if (!user) {
+    const configuredEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const configuredHash = process.env.ADMIN_PASSWORD_HASH;
+    if (!configuredEmail || !configuredHash) {
+      response.status(503).json({
+        error:
+          "Admin sign-in is not configured. Set ADMIN_EMAIL and ADMIN_PASSWORD_HASH in Secrets.",
+      });
+      return;
+    }
+    if (email === configuredEmail && matchesPassword(parsed.data.password, configuredHash)) {
+      await db
+        .insert(adminUsersTable)
+        .values({
+          email,
+          passwordHash: configuredHash,
+          role: "super_admin",
+        })
+        .onConflictDoNothing();
+      const [createdUser] = await db
+        .select()
+        .from(adminUsersTable)
+        .where(eq(adminUsersTable.email, email))
+        .limit(1);
+      user = createdUser;
+    }
+  }
+  if (!user || !matchesPassword(parsed.data.password, user.passwordHash)) {
+    response.status(401).json({ error: "Email or password is incorrect." });
+    return;
+  }
+  const admin: AdminSession = {
+    email: user.email,
+    role: adminRole(user.role),
+  };
+  const sessionId = randomUUID();
+  await createAdminSession(sessionId, admin);
+  issueAdminCookie(response, sessionId);
+  response.json(AdminLoginResponse.parse(admin));
+});
+
+router.post("/admin/auth/logout", async (request, response): Promise<void> => {
+  await removeAdminSession(request);
+  clearAdminCookie(response);
+  response.json(
+    AdminLogoutResponse.parse({
+      success: true,
+      message: "Signed out.",
+    }),
+  );
+});
+
+router.get("/admin/auth/me", async (request, response): Promise<void> => {
+  const admin = await getAdminSession(request);
+  if (!admin) {
+    response.status(401).json({ error: "Admin sign-in required" });
+    return;
+  }
+  response.json(GetAdminSessionResponse.parse(admin));
+});
+
+protectedRouter.use(requireAdmin);
+
+protectedRouter.post(
+  "/admin/auth/change-password",
+  async (request, response): Promise<void> => {
+    const parsed = ChangeAdminPasswordBody.safeParse(request.body);
+    const admin = response.locals.admin as AdminSession;
+    if (!parsed.success) {
+      response.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [user] = await db
+      .select()
+      .from(adminUsersTable)
+      .where(eq(adminUsersTable.email, admin.email))
+      .limit(1);
+    if (!user || !matchesPassword(parsed.data.currentPassword, user.passwordHash)) {
+      response.status(401).json({ error: "Current password is incorrect." });
+      return;
+    }
+    await db
+      .update(adminUsersTable)
+      .set({
+        passwordHash: hashPassword(parsed.data.newPassword),
+        updatedAt: new Date(),
+      })
+      .where(eq(adminUsersTable.email, admin.email));
+    await db
+      .delete(adminSessionsTable)
+      .where(eq(adminSessionsTable.email, admin.email));
+    const sessionId = randomUUID();
+    await createAdminSession(sessionId, admin);
+    issueAdminCookie(response, sessionId);
+    response.json(ChangeAdminPasswordResponse.parse(admin));
+  },
+);
+
+protectedRouter.get(
+  "/admin/users",
+  requireSuperAdmin,
+  async (_request, response): Promise<void> => {
+    const users = await db
+      .select({
+        email: adminUsersTable.email,
+        role: adminUsersTable.role,
+        createdAt: adminUsersTable.createdAt,
+      })
+      .from(adminUsersTable)
+      .orderBy(adminUsersTable.createdAt);
+    response.json(
+      GetAdminUsersResponse.parse(
+        users.map((user) => ({ ...user, role: adminRole(user.role) })),
+      ),
+    );
+  },
+);
+
+protectedRouter.post(
+  "/admin/users",
+  requireSuperAdmin,
+  async (request, response): Promise<void> => {
+    const parsed = CreateAdminUserBody.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const [user] = await db
+        .insert(adminUsersTable)
+        .values({
+          email: parsed.data.email.trim().toLowerCase(),
+          passwordHash: hashPassword(parsed.data.password),
+          role: parsed.data.role,
+        })
+        .returning({
+          email: adminUsersTable.email,
+          role: adminUsersTable.role,
+          createdAt: adminUsersTable.createdAt,
+        });
+      response.status(201).json(
+        CreateAdminUserResponse.parse({
+          ...user,
+          role: adminRole(user.role),
+        }),
+      );
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23505"
+      ) {
+        response.status(409).json({ error: "An admin with that email already exists." });
+        return;
+      }
+      throw error;
+    }
+  },
+);
+
+protectedRouter.patch(
+  "/admin/users/:email/role",
+  requireSuperAdmin,
+  async (request, response): Promise<void> => {
+    const parsedParams = UpdateAdminUserRoleParams.safeParse(request.params);
+    const parsedBody = UpdateAdminUserRoleBody.safeParse(request.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      response.status(400).json({ error: "Invalid admin role update." });
+      return;
+    }
+    const targetEmail = parsedParams.data.email.toLowerCase();
+    const [existing] = await db
+      .select()
+      .from(adminUsersTable)
+      .where(eq(adminUsersTable.email, targetEmail))
+      .limit(1);
+    if (!existing) {
+      response.status(404).json({ error: "Admin account not found." });
+      return;
+    }
+    if (existing.role === "super_admin" && parsedBody.data.role !== "super_admin") {
+      const [superAdmins] = await db
+        .select({ value: count() })
+        .from(adminUsersTable)
+        .where(eq(adminUsersTable.role, "super_admin"));
+      if ((superAdmins?.value ?? 0) <= 1) {
+        response.status(409).json({ error: "At least one Super Admin must remain." });
+        return;
+      }
+    }
+    const [updated] = await db
+      .update(adminUsersTable)
+      .set({ role: parsedBody.data.role, updatedAt: new Date() })
+      .where(eq(adminUsersTable.email, targetEmail))
+      .returning({
+        email: adminUsersTable.email,
+        role: adminUsersTable.role,
+        createdAt: adminUsersTable.createdAt,
+      });
+    response.json(
+      UpdateAdminUserRoleResponse.parse({
+        ...updated,
+        role: adminRole(updated.role),
+      }),
+    );
+  },
+);
+
+protectedRouter.delete(
+  "/admin/users/:email",
+  requireSuperAdmin,
+  async (request, response): Promise<void> => {
+    const parsed = DeleteAdminUserParams.safeParse(request.params);
+    const admin = response.locals.admin as AdminSession;
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid admin email." });
+      return;
+    }
+    const targetEmail = parsed.data.email.toLowerCase();
+    if (targetEmail === admin.email) {
+      response.status(400).json({ error: "You cannot delete your own account." });
+      return;
+    }
+    const [target] = await db
+      .select()
+      .from(adminUsersTable)
+      .where(eq(adminUsersTable.email, targetEmail))
+      .limit(1);
+    if (!target) {
+      response.status(404).json({ error: "Admin account not found." });
+      return;
+    }
+    if (target.role === "super_admin") {
+      const [superAdmins] = await db
+        .select({ value: count() })
+        .from(adminUsersTable)
+        .where(eq(adminUsersTable.role, "super_admin"));
+      if ((superAdmins?.value ?? 0) <= 1) {
+        response.status(409).json({ error: "At least one Super Admin must remain." });
+        return;
+      }
+    }
+    await db
+      .delete(adminSessionsTable)
+      .where(eq(adminSessionsTable.email, targetEmail));
+    await db
+      .delete(adminUsersTable)
+      .where(eq(adminUsersTable.email, targetEmail));
+    response.json(
+      DeleteAdminUserResponse.parse({
+        success: true,
+        message: "Admin account deleted.",
+      }),
+    );
+  },
+);
+
+protectedRouter.get("/admin/overview", async (_request, response): Promise<void> => {
+  const [pending] = await db
+    .select({ value: count() })
+    .from(applicationsTable)
+    .where(eq(applicationsTable.status, "pending"));
+  const [approved] = await db
+    .select({ value: count() })
+    .from(applicationsTable)
+    .where(eq(applicationsTable.status, "approved"));
+  const [rejected] = await db
+    .select({ value: count() })
+    .from(applicationsTable)
+    .where(eq(applicationsTable.status, "rejected"));
+  const [unread] = await db
+    .select({ value: count() })
+    .from(contactMessagesTable)
+    .where(eq(contactMessagesTable.read, false));
+  const recentApplications = await db
+    .select({
+      applicationId: applicationsTable.applicationId,
+      name: applicationsTable.name,
+      status: applicationsTable.status,
+      submittedAt: applicationsTable.submittedAt,
+    })
+    .from(applicationsTable)
+    .orderBy(desc(applicationsTable.submittedAt))
+    .limit(5);
+  response.json(
+    GetAdminOverviewResponse.parse({
+      applications: {
+        pending: pending?.value ?? 0,
+        approved: approved?.value ?? 0,
+        rejected: rejected?.value ?? 0,
+      },
+      unreadMessages: unread?.value ?? 0,
+      recentActivity: recentApplications.map((item) => ({
+        ...item,
+        submittedAt: item.submittedAt.toISOString(),
+      })),
+    }),
+  );
+});
+
+protectedRouter.get("/admin/site", async (_request, response): Promise<void> => {
+  const [site] = await db
+    .select()
+    .from(siteDataTable)
+    .where(eq(siteDataTable.key, "main"))
+    .limit(1);
+  response.json(
+    GetAdminSiteResponse.parse(
+      site ? { settings: site.settings, home: site.home } : defaultSiteData,
+    ),
+  );
+});
+
+protectedRouter.put(
+  "/admin/site",
+  requireSuperAdmin,
+  async (request, response): Promise<void> => {
+    const parsed = UpdateAdminSiteBody.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [site] = await db
+      .insert(siteDataTable)
+      .values({
+        key: "main",
+        settings: parsed.data.settings,
+        home: parsed.data.home,
+      })
+      .onConflictDoUpdate({
+        target: siteDataTable.key,
+        set: {
+          settings: parsed.data.settings,
+          home: parsed.data.home,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    response.json(
+      UpdateAdminSiteResponse.parse({
+        settings: site.settings,
+        home: site.home,
+      }),
+    );
+  },
+);
+
+protectedRouter.get("/admin/content", async (request, response): Promise<void> => {
+  const parsed = GetAdminContentQueryParams.safeParse(request.query);
+  if (!parsed.success || !validateCollection(parsed.data.collection)) {
+    response.status(400).json({ error: "Unknown content collection" });
+    return;
+  }
+  const items = await db
+    .select()
+    .from(contentItemsTable)
+    .where(eq(contentItemsTable.collection, parsed.data.collection))
+    .orderBy(contentItemsTable.position, desc(contentItemsTable.updatedAt));
+  response.json(items.map(publicContentItem));
+});
+
+protectedRouter.post("/admin/content", async (request, response): Promise<void> => {
+  const parsedQuery = CreateAdminContentQueryParams.safeParse(request.query);
+  const parsedBody = CreateAdminContentBody.safeParse(request.body);
+  if (
+    !parsedQuery.success ||
+    !validateCollection(parsedQuery.data.collection) ||
+    !parsedBody.success
+  ) {
+    response.status(400).json({ error: "Invalid collection or content item." });
+    return;
+  }
+  try {
+    const [item] = await db
+      .insert(contentItemsTable)
+      .values({
+        id: randomUUID(),
+        collection: parsedQuery.data.collection,
+        slug: parsedBody.data.slug,
+        data: parsedBody.data.data,
+        status: parsedBody.data.status ?? "draft",
+        position: parsedBody.data.position ?? 0,
+      })
+      .returning();
+    response.status(201).json(
+      CreateAdminContentResponse.parse(publicContentItem(item)),
+    );
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      response.status(409).json({ error: "That slug is already in use." });
+      return;
+    }
+    throw error;
+  }
+});
+
+protectedRouter.patch(
+  "/admin/content/:id",
+  async (request, response): Promise<void> => {
+    const parsedParams = UpdateAdminContentParams.safeParse(request.params);
+    const parsedBody = UpdateAdminContentBody.safeParse(request.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      response.status(400).json({ error: "Invalid content item." });
+      return;
+    }
+    const [item] = await db
+      .update(contentItemsTable)
+      .set({
+        slug: parsedBody.data.slug,
+        data: parsedBody.data.data,
+        ...(parsedBody.data.status ? { status: parsedBody.data.status } : {}),
+        ...(parsedBody.data.position !== undefined
+          ? { position: parsedBody.data.position }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(contentItemsTable.id, parsedParams.data.id))
+      .returning();
+    if (!item) {
+      response.status(404).json({ error: "Content item not found." });
+      return;
+    }
+    response.json(
+      UpdateAdminContentResponse.parse(publicContentItem(item)),
+    );
+  },
+);
+
+protectedRouter.delete(
+  "/admin/content/:id",
+  async (request, response): Promise<void> => {
+    const parsed = DeleteAdminContentParams.safeParse(request.params);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid content item ID." });
+      return;
+    }
+    const [deleted] = await db
+      .delete(contentItemsTable)
+      .where(eq(contentItemsTable.id, parsed.data.id))
+      .returning({ id: contentItemsTable.id });
+    if (!deleted) {
+      response.status(404).json({ error: "Content item not found." });
+      return;
+    }
+    response.json(
+      DeleteAdminContentResponse.parse({
+        success: true,
+        message: "Content item deleted.",
+      }),
+    );
+  },
+);
+
+protectedRouter.get(
+  "/admin/applications",
+  async (request, response): Promise<void> => {
+    const parsed = GetAdminApplicationsQueryParams.safeParse(request.query);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid application filters." });
+      return;
+    }
+    const filters = [];
+    if (parsed.data.status) {
+      filters.push(eq(applicationsTable.status, parsed.data.status));
+    }
+    if (parsed.data.year) {
+      filters.push(eq(applicationsTable.academicYear, parsed.data.year));
+    }
+    if (parsed.data.search?.trim()) {
+      const needle = `%${parsed.data.search.trim()}%`;
+      filters.push(
+        or(
+          ilike(applicationsTable.name, needle),
+          ilike(applicationsTable.applicationId, needle),
+          ilike(applicationsTable.rollNo, needle),
+          ilike(applicationsTable.guardianMobile, needle),
+        )!,
+      );
+    }
+    const records = await db
+      .select()
+      .from(applicationsTable)
+      .where(filters.length ? and(...filters) : undefined)
+      .orderBy(desc(applicationsTable.submittedAt))
+      .limit(250);
+    response.json(records.map(applicationRecord));
+  },
+);
+
+protectedRouter.patch(
+  "/admin/applications/:id/status",
+  async (request, response): Promise<void> => {
+    const parsedParams = UpdateApplicationStatusParams.safeParse(request.params);
+    const parsedBody = UpdateApplicationStatusBody.safeParse(request.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      response.status(400).json({ error: "Invalid application decision." });
+      return;
+    }
+    const [record] = await db
+      .update(applicationsTable)
+      .set({
+        status: parsedBody.data.status,
+        note: parsedBody.data.note?.trim() || null,
+      })
+      .where(eq(applicationsTable.id, parsedParams.data.id))
+      .returning();
+    if (!record) {
+      response.status(404).json({ error: "Application not found." });
+      return;
+    }
+    response.json(
+      UpdateApplicationStatusResponse.parse(applicationRecord(record)),
+    );
+  },
+);
+
+protectedRouter.get(
+  "/admin/messages",
+  async (_request, response): Promise<void> => {
+    const messages = await db
+      .select()
+      .from(contactMessagesTable)
+      .orderBy(desc(contactMessagesTable.createdAt))
+      .limit(300);
+    response.json(
+      GetAdminMessagesResponse.parse(messages.map(contactMessage)),
+    );
+  },
+);
+
+protectedRouter.patch(
+  "/admin/messages/:id/read",
+  async (request, response): Promise<void> => {
+    const parsed = MarkAdminMessageReadParams.safeParse(request.params);
+    if (!parsed.success) {
+      response.status(400).json({ error: "Invalid message ID." });
+      return;
+    }
+    const [message] = await db
+      .update(contactMessagesTable)
+      .set({ read: true })
+      .where(eq(contactMessagesTable.id, parsed.data.id))
+      .returning();
+    if (!message) {
+      response.status(404).json({ error: "Message not found." });
+      return;
+    }
+    response.json(
+      MarkAdminMessageReadResponse.parse(contactMessage(message)),
+    );
+  },
+);
+
+router.use(protectedRouter);
+
+export default router;
