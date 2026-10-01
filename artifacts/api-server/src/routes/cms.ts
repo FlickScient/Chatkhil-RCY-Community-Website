@@ -103,6 +103,8 @@ const defaultSiteData = {
     email: "Chatkhilcollege2023@gmail.com",
     phone: "032275002",
     website: "cmpe.edu.bd",
+    minAge: null,
+    maxAge: null,
     address: {
       bn: "চাটখিল, নোয়াখালী, বাংলাদেশ",
       en: "Chatkhil, Noakhali, Bangladesh",
@@ -118,8 +120,23 @@ function asIso(value: Date | string): string {
 function publicContentItem(item: typeof contentItemsTable.$inferSelect) {
   return {
     ...item,
+    data: normalizeStoredContent(item.data) as Record<string, unknown>,
     updatedAt: asIso(item.updatedAt),
   };
+}
+
+function normalizeStoredContent(value: unknown): unknown {
+  if (typeof value === "string") return value.replaceAll("\\n", "\n");
+  if (Array.isArray(value)) return value.map(normalizeStoredContent);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        normalizeStoredContent(nested),
+      ]),
+    );
+  }
+  return value;
 }
 
 function applicationRecord(item: typeof applicationsTable.$inferSelect) {
@@ -154,12 +171,12 @@ function isMobileNumber(value: string): boolean {
   return /^01[0-9]{9}$/.test(value);
 }
 
-function isValidAge(dateValue: Date | string): boolean {
+function calculateAge(dateValue: Date | string): number | null {
   const dob =
     dateValue instanceof Date
       ? dateValue
       : new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(dob.getTime())) return false;
+  if (Number.isNaN(dob.getTime())) return null;
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
   const monthDelta = today.getMonth() - dob.getMonth();
@@ -169,7 +186,19 @@ function isValidAge(dateValue: Date | string): boolean {
   ) {
     age -= 1;
   }
-  return age >= 16;
+  return age;
+}
+
+function getAgeLimit(settings: Record<string, unknown> | undefined, key: "minAge" | "maxAge"): number | undefined {
+  const value = settings?.[key];
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 120
+    ? value
+    : undefined;
+}
+
+function hasInvalidAgeLimit(value: unknown): boolean {
+  return value !== null && value !== undefined &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 120);
 }
 
 function matchesPassword(password: string, storedHash: string): boolean {
@@ -224,7 +253,13 @@ router.get("/site", async (_request, response): Promise<void> => {
   response.json(
     GetSiteResponse.parse(
       site
-        ? { settings: site.settings, home: site.home }
+        ? {
+            settings: {
+              ...defaultSiteData.settings,
+              ...(normalizeStoredContent(site.settings) as Record<string, unknown>),
+            },
+            home: normalizeStoredContent(site.home) as Record<string, unknown>,
+          }
         : defaultSiteData,
     ),
   );
@@ -287,8 +322,20 @@ router.post("/applications", async (request, response): Promise<void> => {
     response.status(400).json({ error: "Use a Bangladeshi mobile number in 01XXXXXXXXX format." });
     return;
   }
-  if (!isValidAge(data.dateOfBirth)) {
-    response.status(400).json({ error: "Applicants must be at least 16 years old." });
+  const [site] = await db
+    .select({ settings: siteDataTable.settings })
+    .from(siteDataTable)
+    .where(eq(siteDataTable.key, "main"))
+    .limit(1);
+  const settings = site?.settings as Record<string, unknown> | undefined;
+  const minAge = getAgeLimit(settings, "minAge");
+  const maxAge = getAgeLimit(settings, "maxAge");
+  const age = calculateAge(data.dateOfBirth);
+  if (
+    (minAge !== undefined || maxAge !== undefined) &&
+    (age === null || (minAge !== undefined && age < minAge) || (maxAge !== undefined && age > maxAge))
+  ) {
+    response.status(400).json({ error: "Applicant age is outside the configured limits." });
     return;
   }
   const applicationId = `RCY-${new Date().getFullYear()}-${randomUUID()
@@ -306,7 +353,7 @@ router.post("/applications", async (request, response): Promise<void> => {
         name: data.name,
         guardianMobile: data.guardianMobile,
         photoPath: data.photoPath,
-        data: data as Record<string, unknown>,
+        data: normalizeStoredContent(data) as Record<string, unknown>,
       })
       .returning();
     response.status(201).json(
@@ -371,11 +418,11 @@ router.post("/contact", async (request, response): Promise<void> => {
   const data = parsed.data;
   await db.insert(contactMessagesTable).values({
     id: randomUUID(),
-    name: data.name.trim(),
-    email: data.email.trim().toLowerCase(),
-    phone: data.phone?.trim() || null,
-    subject: data.subject.trim(),
-    message: data.message.trim(),
+    name: normalizeStoredContent(data.name.trim()) as string,
+    email: (normalizeStoredContent(data.email.trim()) as string).toLowerCase(),
+    phone: data.phone ? (normalizeStoredContent(data.phone.trim()) as string) || null : null,
+    subject: normalizeStoredContent(data.subject.trim()) as string,
+    message: normalizeStoredContent(data.message.trim()) as string,
   });
   response.status(201).json(
     SendContactMessageResponse.parse({
@@ -707,7 +754,15 @@ protectedRouter.get("/admin/site", async (_request, response): Promise<void> => 
     .limit(1);
   response.json(
     GetAdminSiteResponse.parse(
-      site ? { settings: site.settings, home: site.home } : defaultSiteData,
+      site
+        ? {
+            settings: {
+              ...defaultSiteData.settings,
+              ...(normalizeStoredContent(site.settings) as Record<string, unknown>),
+            },
+            home: normalizeStoredContent(site.home) as Record<string, unknown>,
+          }
+        : defaultSiteData,
     ),
   );
 });
@@ -721,18 +776,44 @@ protectedRouter.put(
       response.status(400).json({ error: parsed.error.message });
       return;
     }
+    const minAgeValue = parsed.data.settings.minAge;
+    const maxAgeValue = parsed.data.settings.maxAge;
+    if (
+      hasInvalidAgeLimit(minAgeValue) ||
+      hasInvalidAgeLimit(maxAgeValue) ||
+      (typeof minAgeValue === "number" &&
+        typeof maxAgeValue === "number" &&
+        minAgeValue > maxAgeValue)
+    ) {
+      response.status(400).json({ error: "Age limits must be whole numbers from 0 to 120, with minimum no greater than maximum." });
+      return;
+    }
+    const [existingSite] = await db
+      .select()
+      .from(siteDataTable)
+      .where(eq(siteDataTable.key, "main"))
+      .limit(1);
+    const settings = {
+      ...defaultSiteData.settings,
+      ...(existingSite?.settings ?? {}),
+      ...(normalizeStoredContent(parsed.data.settings) as Record<string, unknown>),
+    };
+    const home = {
+      ...(existingSite?.home ?? {}),
+      ...(normalizeStoredContent(parsed.data.home) as Record<string, unknown>),
+    };
     const [site] = await db
       .insert(siteDataTable)
       .values({
         key: "main",
-        settings: parsed.data.settings,
-        home: parsed.data.home,
+        settings,
+        home,
       })
       .onConflictDoUpdate({
         target: siteDataTable.key,
         set: {
-          settings: parsed.data.settings,
-          home: parsed.data.home,
+          settings,
+          home,
           updatedAt: new Date(),
         },
       })
@@ -778,7 +859,7 @@ protectedRouter.post("/admin/content", async (request, response): Promise<void> 
         id: randomUUID(),
         collection: parsedQuery.data.collection,
         slug: parsedBody.data.slug,
-        data: parsedBody.data.data,
+        data: normalizeStoredContent(parsedBody.data.data) as Record<string, unknown>,
         status: parsedBody.data.status ?? "draft",
         position: parsedBody.data.position ?? 0,
       })
@@ -813,7 +894,7 @@ protectedRouter.patch(
       .update(contentItemsTable)
       .set({
         slug: parsedBody.data.slug,
-        data: parsedBody.data.data,
+        data: normalizeStoredContent(parsedBody.data.data) as Record<string, unknown>,
         ...(parsedBody.data.status ? { status: parsedBody.data.status } : {}),
         ...(parsedBody.data.position !== undefined
           ? { position: parsedBody.data.position }
