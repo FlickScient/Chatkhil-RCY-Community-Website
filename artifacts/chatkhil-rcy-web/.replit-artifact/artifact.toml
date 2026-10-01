@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Chatkhil RCY Community"
+description = "The bilingual public website and administration system for the Red Crescent Youth Unit of Chatkhil Panchgaon Mahbub Government College."
+version = "1.0.0"
+id = "artifacts/chatkhil-rcy-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21868
+
+[services.development]
+run = "pnpm --filter @workspace/chatkhil-rcy-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chatkhil-rcy-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/chatkhil-rcy-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21868"
+BASE_PATH = "/"

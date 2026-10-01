@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Public and admin API for the Chatkhil RCY community website
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: public
+    description: Public website content and forms
+  - name: admin
+    description: Protected content management
 paths:
   /healthz:
     get:
@@ -24,6 +28,492 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /site:
+    get:
+      operationId: getSite
+      tags: [public]
+      summary: Get published site settings and home sections
+      responses:
+        "200":
+          description: Site settings and homepage data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteData"
+  /content:
+    get:
+      operationId: getPublicContent
+      tags: [public]
+      summary: List published content in a collection
+      parameters:
+        - in: query
+          name: collection
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published content items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentItem"
+  /content/{slug}:
+    get:
+      operationId: getPublicContentItem
+      tags: [public]
+      summary: Get one published item by slug
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentItem"
+        "404":
+          description: Item not found
+  /applications:
+    post:
+      operationId: submitApplication
+      tags: [public]
+      summary: Submit a membership application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "201":
+          description: Application received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReceipt"
+        "409":
+          description: Roll number already applied for this academic year
+  /applications/status:
+    get:
+      operationId: checkApplicationStatus
+      tags: [public]
+      summary: Check application status using its ID and applicant mobile
+      parameters:
+        - in: query
+          name: applicationId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: mobile
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationStatus"
+        "404":
+          description: Application not found
+  /contact:
+    post:
+      operationId: sendContactMessage
+      tags: [public]
+      summary: Send a message to the unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactMessageInput"
+      responses:
+        "201":
+          description: Message received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+  /admin/auth/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Sign in to the admin dashboard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Admin session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Invalid credentials
+  /admin/auth/logout:
+    post:
+      operationId: adminLogout
+      tags: [admin]
+      summary: End the current admin session
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+  /admin/auth/me:
+    get:
+      operationId: getAdminSession
+      tags: [admin]
+      summary: Get the current admin user
+      responses:
+        "200":
+          description: Current admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Not signed in
+  /admin/auth/change-password:
+    post:
+      operationId: changeAdminPassword
+      tags: [admin]
+      summary: Change the current administrator password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeAdminPasswordInput"
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Current password is incorrect
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: List administrator accounts
+      responses:
+        "200":
+          description: Administrator accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUserRecord"
+    post:
+      operationId: createAdminUser
+      tags: [admin]
+      summary: Create an editor or super administrator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAdminUserInput"
+      responses:
+        "201":
+          description: Administrator account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserRecord"
+  /admin/users/{email}/role:
+    patch:
+      operationId: updateAdminUserRole
+      tags: [admin]
+      summary: Change an administrator role
+      parameters:
+        - in: path
+          name: email
+          required: true
+          schema:
+            type: string
+            format: email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRoleInput"
+      responses:
+        "200":
+          description: Administrator role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserRecord"
+  /admin/users/{email}:
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Delete an administrator account
+      parameters:
+        - in: path
+          name: email
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Administrator account deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get dashboard totals and recent activity
+      responses:
+        "200":
+          description: Dashboard overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+  /admin/site:
+    get:
+      operationId: getAdminSite
+      tags: [admin]
+      summary: Get editable site settings and homepage configuration
+      responses:
+        "200":
+          description: Current editable site data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteData"
+    put:
+      operationId: updateAdminSite
+      tags: [admin]
+      summary: Save editable site settings and homepage configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SiteData"
+      responses:
+        "200":
+          description: Updated site data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteData"
+  /admin/content:
+    get:
+      operationId: getAdminContent
+      tags: [admin]
+      summary: List all items in an editable CMS collection
+      parameters:
+        - in: query
+          name: collection
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CMS content items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentItem"
+    post:
+      operationId: createAdminContent
+      tags: [admin]
+      summary: Create a CMS content item
+      parameters:
+        - in: query
+          name: collection
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentInput"
+      responses:
+        "201":
+          description: New content item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentItem"
+  /admin/content/{id}:
+    patch:
+      operationId: updateAdminContent
+      tags: [admin]
+      summary: Update a CMS content item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentInput"
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentItem"
+    delete:
+      operationId: deleteAdminContent
+      tags: [admin]
+      summary: Delete a CMS content item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Item deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+  /admin/applications:
+    get:
+      operationId: getAdminApplications
+      tags: [admin]
+      summary: Search and filter membership applications
+      parameters:
+        - in: query
+          name: year
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Membership applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApplicationRecord"
+  /admin/applications/{id}/status:
+    patch:
+      operationId: updateApplicationStatus
+      tags: [admin]
+      summary: Approve or reject an application with an optional note
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationDecision"
+      responses:
+        "200":
+          description: Updated application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationRecord"
+  /admin/messages:
+    get:
+      operationId: getAdminMessages
+      tags: [admin]
+      summary: List contact-form messages
+      responses:
+        "200":
+          description: Inbox messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContactMessage"
+  /admin/messages/{id}/read:
+    patch:
+      operationId: markAdminMessageRead
+      tags: [admin]
+      summary: Mark a message as read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactMessage"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [public]
+      summary: Request a short-lived upload URL for a photo or media file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadRequest"
+      responses:
+        "200":
+          description: Upload destination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadRequestResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +523,173 @@ components:
           type: string
       required:
         - status
+    ContentItem:
+      type: object
+      properties:
+        id: { type: string }
+        collection: { type: string }
+        slug: { type: string }
+        data: { type: object, additionalProperties: true }
+        status: { type: string, enum: [draft, published] }
+        position: { type: integer }
+        updatedAt: { type: string, format: date-time }
+      required: [id, collection, slug, data, status, position, updatedAt]
+    ContentInput:
+      type: object
+      properties:
+        slug: { type: string, minLength: 1 }
+        data: { type: object, additionalProperties: true }
+        status: { type: string, enum: [draft, published] }
+        position: { type: integer }
+      required: [slug, data]
+    SiteData:
+      type: object
+      properties:
+        settings: { type: object, additionalProperties: true }
+        home: { type: object, additionalProperties: true }
+      required: [settings, home]
+    ApplicationInput:
+      type: object
+      properties:
+        photoPath: { type: string, minLength: 1 }
+        academicYear: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        rollNo: { type: string, minLength: 1 }
+        branch: { type: string, minLength: 1 }
+        motherName: { type: string, minLength: 1 }
+        fatherName: { type: string, minLength: 1 }
+        permanentAddress: { type: object, additionalProperties: { type: string } }
+        presentAddress: { type: object, additionalProperties: { type: string } }
+        sameAddress: { type: boolean }
+        nationality: { type: string, minLength: 1 }
+        religion: { type: string, minLength: 1 }
+        guardianName: { type: string, minLength: 1 }
+        guardianMobile: { type: string, minLength: 11, maxLength: 11, pattern: "^01[0-9]{9}$" }
+        dateOfBirth: { type: string, format: date }
+        declaration: { type: boolean, const: true }
+        guardianConsent: { type: string, minLength: 1 }
+        guardianSignaturePath: { type: string }
+      required: [photoPath, academicYear, name, rollNo, branch, motherName, fatherName, permanentAddress, presentAddress, sameAddress, nationality, religion, guardianName, guardianMobile, dateOfBirth, declaration, guardianConsent]
+    ApplicationReceipt:
+      type: object
+      properties:
+        applicationId: { type: string }
+        status: { type: string, enum: [pending] }
+        submittedAt: { type: string, format: date-time }
+      required: [applicationId, status, submittedAt]
+    ApplicationStatus:
+      type: object
+      properties:
+        applicationId: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        note: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+      required: [applicationId, status, submittedAt]
+    ApplicationRecord:
+      type: object
+      properties:
+        id: { type: string }
+        applicationId: { type: string }
+        academicYear: { type: string }
+        name: { type: string }
+        rollNo: { type: string }
+        guardianMobile: { type: string }
+        photoPath: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        note: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+        data: { type: object, additionalProperties: true }
+      required: [id, applicationId, academicYear, name, rollNo, guardianMobile, photoPath, status, submittedAt, data]
+    ApplicationDecision:
+      type: object
+      properties:
+        status: { type: string, enum: [approved, rejected] }
+        note: { type: string }
+      required: [status]
+    ContactMessageInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        phone: { type: string }
+        subject: { type: string, minLength: 1 }
+        message: { type: string, minLength: 1 }
+      required: [name, email, subject, message]
+    ContactMessage:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: ["string", "null"] }
+        subject: { type: string }
+        message: { type: string }
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, name, email, subject, message, read, createdAt]
+    AdminLoginInput:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+      required: [email, password]
+    AdminUser:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [super_admin, editor] }
+      required: [email, role]
+    AdminUserRecord:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [super_admin, editor] }
+        createdAt: { type: string, format: date-time }
+      required: [email, role, createdAt]
+    ChangeAdminPasswordInput:
+      type: object
+      properties:
+        currentPassword: { type: string, minLength: 1 }
+        newPassword: { type: string, minLength: 12 }
+      required: [currentPassword, newPassword]
+    CreateAdminUserInput:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 12 }
+        role: { type: string, enum: [super_admin, editor] }
+      required: [email, password, role]
+    AdminRoleInput:
+      type: object
+      properties:
+        role: { type: string, enum: [super_admin, editor] }
+      required: [role]
+    AdminOverview:
+      type: object
+      properties:
+        applications: { type: object, additionalProperties: { type: integer } }
+        unreadMessages: { type: integer }
+        recentActivity:
+          type: array
+          items: { type: object, additionalProperties: true }
+      required: [applications, unreadMessages, recentActivity]
+    SuccessMessage:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+      required: [success, message]
+    UploadRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: integer, minimum: 1 }
+        contentType: { type: string, minLength: 1 }
+      required: [name, size, contentType]
+    UploadRequestResponse:
+      type: object
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+      required: [uploadURL, objectPath]
 
