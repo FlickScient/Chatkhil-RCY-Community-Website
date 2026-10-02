@@ -116,8 +116,7 @@ globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
-  });
-}
+  };
 
   // Full server entry point: starts listening on PORT (used for `pnpm start`).
   await esbuild({
