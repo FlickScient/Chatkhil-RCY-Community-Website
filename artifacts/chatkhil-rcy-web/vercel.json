@@ -1,9 +1,9 @@
 {
-  "version": 2,
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/chatkhil-rcy-web run build",
-  "outputDirectory": "artifacts/chatkhil-rcy-web/dist/public",
+  "outputDirectory": "dist/public",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
