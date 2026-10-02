@@ -14,8 +14,7 @@ async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
-  await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+  const sharedOptions = {
     platform: "node",
     bundle: true,
     format: "esm",
@@ -120,7 +119,17 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+  // Full server entry point: starts listening on PORT (used for `pnpm start`).
+  await esbuild({
+    ...sharedOptions,
+    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+  });
+
+  // App-only entry point (no .listen()): used by the Vercel serverless
+  // function in /api, which imports this already-built app instead of
+  // compiling raw TypeScript itself.
+  await esbuild({
+    ...sharedOptions,
+    entryPoints: [path.resolve(artifactDir, "src/app.ts")],
+  });
+}
