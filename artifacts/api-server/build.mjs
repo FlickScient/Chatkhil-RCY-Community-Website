@@ -118,24 +118,13 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     },
   };
 
-  // Full server entry point: starts listening on PORT (used for `pnpm start`).
+ // Build both entry points together into dist/, so the pino worker-thread
+  // files are only generated once and shared by both outputs.
   await esbuild({
     ...sharedOptions,
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
-  });
-
-  // App-only entry point for Vercel. Emit it beside the API handler so the
-  // function bundles it as a sibling instead of tracing across the monorepo.
-  const apiAppOptions = { ...sharedOptions };
-  delete apiAppOptions.outdir;
-  await esbuild({
-    ...apiAppOptions,
-    outfile: path.resolve(artifactDir, "../../api/_app.mjs"),
-    entryPoints: [path.resolve(artifactDir, "src/app.ts")],
+    entryPoints: [
+      path.resolve(artifactDir, "src/index.ts"),
+      path.resolve(artifactDir, "src/app.ts"),
+    ],
   });
 }
-
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
