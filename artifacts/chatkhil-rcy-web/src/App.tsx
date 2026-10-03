@@ -471,8 +471,8 @@ function PaperForm({applicationId,photo,data}:{applicationId:string;photo?:strin
     <div className="pf-line" style={{marginLeft:0}}><L t="৫. বৈধ অভিভাবকের নাম" v={data.guardianName}/><L t="মোবাইল নং" v={data.guardianMobile}/></div>
     <div className="pf-line" style={{marginLeft:0}}><L t="৬. জন্ম তারিখ" v={data.dateOfBirth} w="60%"/></div>
     <p style={{marginTop:14,lineHeight:1.8,textAlign:'justify'}}>আমি অঙ্গীকার করছি যে, উপরোক্ত বিবরণ সমূহ সম্পূর্ণ সত্য এবং আমি কলেজের রেডক্রিসেন্ট সোসাইটি ইউনিট এর যাবতীয় নিয়মাবলী মানিয়া চলতে বাধ্য থাকব। আমি আরো অঙ্গীকার করছি যে, কোন পেশাগত রাজনীতির সাথে জড়িত থাকব না।</p>
-    <div style={{display:'flex',justifyContent:'space-between',marginTop:50}}>{sig('অভিভাবকের স্বাক্ষর',data.guardianConsent)}{sig('আবেদনকারীর স্বাক্ষর')}</div>
-    <div style={{display:'flex',justifyContent:'space-between',marginTop:46}}>{sig('অধ্যক্ষ')}{sig('দায়িত্বপ্রাপ্ত শিক্ষকের স্বাক্ষর')}</div>
+    <div style={{display:'flex',justifyContent:'space-between',marginTop:28}}>{sig('অভিভাবকের স্বাক্ষর',data.guardianConsent)}{sig('আবেদনকারীর স্বাক্ষর')}</div>
+    <div style={{display:'flex',justifyContent:'space-between',marginTop:24}}>{sig('অধ্যক্ষ')}{sig('দায়িত্বপ্রাপ্ত শিক্ষকের স্বাক্ষর')}</div>
   </div>;
 }
 
