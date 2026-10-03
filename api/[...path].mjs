@@ -1,5 +1,4 @@
-import app from "../artifacts/api-server/dist/app.mjs";
-
+import app from "./_app.mjs";
 const runExpress = app;
 
 export default function handler(request, response) {
