@@ -4,10 +4,10 @@
   "installCommand": "pnpm install",
   "outputDirectory": "artifacts/chatkhil-rcy-web/dist/public",
   "functions": {
-    "api/*.mjs": {
-      "includeFiles": "artifacts/api-server/dist/**"
-    }
-  },
+  "api/[...path].mjs": {
+    "includeFiles": "artifacts/api-server/dist/**"
+  }
+},
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
