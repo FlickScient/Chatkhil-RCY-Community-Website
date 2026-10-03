@@ -30,4 +30,4 @@ html { scroll-behavior:smooth; }
 :focus-visible {outline:3px solid rgba(200,16,46,.45);outline-offset:3px}
 @media(max-width:700px){.page-wrap{width:min(100% - 32px,1180px)}}
 .paper-form{display:none}
-@media print{body *{visibility:hidden}.paper-form,.paper-form *{visibility:visible}.paper-form{display:block;position:absolute;left:0;top:0;width:100%;background:#fff}@page{size:A4;margin:8mm}}
+@media print{body *{visibility:hidden}.paper-form,.paper-form *{visibility:visible}.paper-form{display:block;position:absolute;left:0;top:0;width:100%;background:#fff}@page{size:A4;margin:5mm}}
