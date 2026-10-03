@@ -4,6 +4,7 @@
   "installCommand": "pnpm install",
   "outputDirectory": "artifacts/chatkhil-rcy-web/dist/public",
   "rewrites": [
+    { "source": "/api/:match*", "destination": "/api/index" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
