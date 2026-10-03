@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSubmitEditorAccessRequest } from "@workspace/api-client-react";
+import { Eye, EyeOff } from "lucide-react";
 
 type Lang = "bn" | "en";
 const text = (lang: Lang, bn: string, en: string) => (lang === "bn" ? bn : en);
@@ -9,6 +10,7 @@ export default function EditorAccessRequestForm({ lang }: { lang: Lang }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(false);
 
@@ -51,7 +53,12 @@ export default function EditorAccessRequestForm({ lang }: { lang: Lang }) {
                 <input type="email" required maxLength={254} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-rose-200 px-3 py-3" data-testid="input-editor-request-email" />
               </label>
               <label className="block text-sm font-semibold text-stone-700">{text(lang, "পাসওয়ার্ড (কমপক্ষে ১২ অক্ষর)", "Password (at least 12 characters)")}
-                <input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-rose-200 px-3 py-3" data-testid="input-editor-request-password" />
+                <span className="relative mt-2 block">
+                  <input type={showPassword ? "text" : "password"} required minLength={12} maxLength={128} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-rose-200 px-3 py-3 pr-12" data-testid="input-editor-request-password" />
+                  <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={text(lang, showPassword ? "পাসওয়ার্ড লুকান" : "পাসওয়ার্ড দেখান", showPassword ? "Hide password" : "Show password")} aria-pressed={showPassword} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-[#8F0A1F]" data-testid="button-toggle-editor-request-password">
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </span>
               </label>
               {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">{text(lang, "আবেদন জমা হয়নি। আবার চেষ্টা করুন।", "Could not submit the request. Please try again.")}</p>}
               <button type="submit" disabled={submitRequest.isPending} className="w-full rounded-full bg-[#C8102E] px-5 py-3 text-sm font-bold text-white disabled:opacity-50" data-testid="button-submit-editor-request">{submitRequest.isPending ? text(lang, "জমা হচ্ছে…", "Submitting…") : text(lang, "আবেদন জমা দিন", "Submit request")}</button>
