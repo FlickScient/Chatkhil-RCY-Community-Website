@@ -3,11 +3,6 @@
   "buildCommand": "pnpm run build",
   "installCommand": "pnpm install",
   "outputDirectory": "artifacts/chatkhil-rcy-web/dist/public",
-  "functions": {
-  "api/[...path].mjs": {
-    "includeFiles": "artifacts/api-server/dist/**"
-  }
-},
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
