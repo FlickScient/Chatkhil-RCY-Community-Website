@@ -57,7 +57,11 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
   });
 
-  const apiAppOptions = { ...sharedOptions, plugins: [] };
+  const apiAppOptions = {
+  ...sharedOptions,
+  plugins: [],
+  external: sharedOptions.external.filter((pkg) => pkg !== "@google-cloud/*"),
+};
   delete apiAppOptions.outdir;
   await esbuild({
     ...apiAppOptions,
