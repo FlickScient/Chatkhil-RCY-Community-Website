@@ -124,11 +124,13 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
   });
 
-  // App-only entry point (no .listen()): used by the Vercel serverless
-  // function in /api, which imports this already-built app instead of
-  // compiling raw TypeScript itself.
+  // App-only entry point for Vercel. Emit it beside the API handler so the
+  // function bundles it as a sibling instead of tracing across the monorepo.
+  const apiAppOptions = { ...sharedOptions };
+  delete apiAppOptions.outdir;
   await esbuild({
-    ...sharedOptions,
+    ...apiAppOptions,
+    outfile: path.resolve(artifactDir, "../../api/_app.mjs"),
     entryPoints: [path.resolve(artifactDir, "src/app.ts")],
   });
 }
