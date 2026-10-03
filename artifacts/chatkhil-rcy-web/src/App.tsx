@@ -459,7 +459,7 @@ function PaperForm({applicationId,photo,data}:{applicationId:string;photo?:strin
       <div style={{flex:1,textAlign:'center',paddingTop:6}}><div style={{display:'inline-block',fontSize:22,fontWeight:700,borderBottom:'2px solid #000'}}>রেড ক্রিসেন্ট সোসাইটি ইউনিট-এ ভর্তি ফরম</div><div style={{marginTop:8,fontWeight:600}}>শিক্ষা বর্ষঃ {data.academicYear||''}</div><div style={{fontSize:12,marginTop:4}}>আবেদন নম্বরঃ {applicationId}</div></div>
       <div style={{width:'32mm',height:'38mm',border:'1.5px solid #000',display:'grid',placeItems:'center',overflow:'hidden'}}>{photo?<img src={photoSrc(photo)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<b>ছবি</b>}</div>
     </div>
-    <style>{`.pf-line{display:flex;gap:16px;margin:7px 0 7px 22px}.pf-row{display:flex;gap:6px;border-bottom:1px dotted #000;min-height:22px}.pf-row b{font-weight:500}`}</style>
+    <style>{`.pf-line{display:flex;gap:16px;margin:4px 0 4px 22px}.pf-row{display:flex;gap:6px;border-bottom:1px dotted #000;min-height:22px}.pf-row b{font-weight:500}`}</style>
     <div style={{marginTop:14,fontWeight:700}}>১. আবেদনকারী</div>
     <div className="pf-line"><L t="নাম" v={data.name}/><L t="রোল নং" v={data.rollNo} w="38%"/></div>
     <div className="pf-line"><L t="শাখা" v={data.branch}/><L t="মাতার নাম" v={data.motherName}/></div>
