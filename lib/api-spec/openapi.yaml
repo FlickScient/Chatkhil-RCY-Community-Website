@@ -209,6 +209,64 @@ paths:
                 $ref: "#/components/schemas/AdminUser"
         "401":
           description: Current password is incorrect
+  /admin/editor-access-requests:
+    post:
+      operationId: submitEditorAccessRequest
+      tags: [admin]
+      summary: Request editor access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditorAccessRequestInput"
+      responses:
+        "202":
+          description: Request received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+    get:
+      operationId: getEditorAccessRequests
+      tags: [admin]
+      summary: List pending editor access requests for Super Admins
+      responses:
+        "200":
+          description: Pending editor access requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EditorAccessRequest"
+  /admin/editor-access-requests/{requestId}:
+    patch:
+      operationId: reviewEditorAccessRequest
+      tags: [admin]
+      summary: Approve or reject an editor access request
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditorAccessRequestDecisionInput"
+      responses:
+        "200":
+          description: Request reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+        "404":
+          description: Request no longer pending
   /admin/users:
     get:
       operationId: getAdminUsers
@@ -627,6 +685,24 @@ components:
         read: { type: boolean }
         createdAt: { type: string, format: date-time }
       required: [id, name, email, subject, message, read, createdAt]
+    EditorAccessRequestInput:
+      type: object
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 128 }
+      required: [email, password]
+    EditorAccessRequestDecisionInput:
+      type: object
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+      required: [decision]
+    EditorAccessRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        createdAt: { type: string, format: date-time }
+      required: [id, email, createdAt]
     AdminLoginInput:
       type: object
       properties:

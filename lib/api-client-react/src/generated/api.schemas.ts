@@ -189,6 +189,34 @@ export interface ContactMessage {
   createdAt: string;
 }
 
+export interface EditorAccessRequestInput {
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 12
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export type EditorAccessRequestDecisionInputDecision = typeof EditorAccessRequestDecisionInputDecision[keyof typeof EditorAccessRequestDecisionInputDecision];
+
+
+export const EditorAccessRequestDecisionInputDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface EditorAccessRequestDecisionInput {
+  decision: EditorAccessRequestDecisionInputDecision;
+}
+
+export interface EditorAccessRequest {
+  id: string;
+  email: string;
+  createdAt: string;
+}
+
 export interface AdminLoginInput {
   email: string;
   /** @minLength 1 */

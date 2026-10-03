@@ -205,6 +205,55 @@ export const ChangeAdminPasswordResponse = zod.object({
 
 
 /**
+ * @summary Request editor access
+ */
+export const submitEditorAccessRequestBodyEmailMax = 254;
+
+export const submitEditorAccessRequestBodyPasswordMin = 12;
+export const submitEditorAccessRequestBodyPasswordMax = 128;
+
+
+
+export const SubmitEditorAccessRequestBody = zod.object({
+  "email": zod.string().email().max(submitEditorAccessRequestBodyEmailMax),
+  "password": zod.string().min(submitEditorAccessRequestBodyPasswordMin).max(submitEditorAccessRequestBodyPasswordMax)
+})
+
+export const SubmitEditorAccessRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List pending editor access requests for Super Admins
+ */
+export const GetEditorAccessRequestsResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "createdAt": zod.coerce.date()
+})
+export const GetEditorAccessRequestsResponse = zod.array(GetEditorAccessRequestsResponseItem)
+
+
+/**
+ * @summary Approve or reject an editor access request
+ */
+export const ReviewEditorAccessRequestParams = zod.object({
+  "requestId": zod.coerce.string().uuid()
+})
+
+export const ReviewEditorAccessRequestBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const ReviewEditorAccessRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary List administrator accounts
  */
 export const GetAdminUsersResponseItem = zod.object({

@@ -2,8 +2,11 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetAdminUsersQueryKey,
+  getGetEditorAccessRequestsQueryKey,
   useDeleteAdminUser,
   useGetAdminUsers,
+  useGetEditorAccessRequests,
+  useReviewEditorAccessRequest,
 } from "@workspace/api-client-react";
 import { Search, ShieldCheck, Trash2, Users } from "lucide-react";
 
@@ -20,10 +23,13 @@ export default function AdminUsersPage({
 }) {
   const queryClient = useQueryClient();
   const usersQuery = useGetAdminUsers();
+  const requestsQuery = useGetEditorAccessRequests();
   const deleteUser = useDeleteAdminUser();
+  const reviewRequest = useReviewEditorAccessRequest();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [requestMessage, setRequestMessage] = useState("");
 
   const accounts = (usersQuery.data ?? []).filter(
     (account) => account.role === "editor" || account.role === "super_admin",
@@ -45,6 +51,35 @@ export default function AdminUsersPage({
 
   const refreshUsers = () =>
     queryClient.invalidateQueries({ queryKey: getGetAdminUsersQueryKey() });
+
+  const refreshRequests = () =>
+    queryClient.invalidateQueries({ queryKey: getGetEditorAccessRequestsQueryKey() });
+
+  const handleReviewRequest = (requestId: string, decision: "approve" | "reject") => {
+    const approved = decision === "approve";
+    const confirmed = window.confirm(
+      text(
+        lang,
+        approved ? "এই আবেদন অনুমোদন করলে Editor অ্যাকাউন্ট তৈরি হবে। এগোবেন?" : "এই Editor অ্যাক্সেস আবেদনটি প্রত্যাখ্যান করবেন?",
+        approved ? "Approving creates an Editor account with the applicant's password. Continue?" : "Reject this editor access request?",
+      ),
+    );
+    if (!confirmed) return;
+    setRequestMessage("");
+    reviewRequest.mutate(
+      { requestId, data: { decision } },
+      {
+        onSuccess: async () => {
+          await Promise.all([refreshRequests(), refreshUsers()]);
+          setRequestMessage(
+            text(lang, approved ? "আবেদন অনুমোদিত হয়েছে।" : "আবেদন প্রত্যাখ্যান হয়েছে।", approved ? "Request approved." : "Request rejected."),
+          );
+        },
+        onError: () =>
+          setRequestMessage(text(lang, "আবেদনটি পর্যালোচনা করা যায়নি। আবার চেষ্টা করুন।", "Could not review the request. Please try again.")),
+      },
+    );
+  };
 
   const toggleEditor = (selectedEmail: string) => {
     setSelected((current) =>
@@ -157,6 +192,48 @@ export default function AdminUsersPage({
           <span className="text-stone-500">{text(lang, "টি অ্যাকাউন্ট", "accounts")}</span>
         </div>
       </header>
+
+      <section className="overflow-hidden rounded-2xl border border-rose-200 bg-white" data-testid="editor-access-requests">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-100 bg-[#fffafa] p-4 sm:p-5">
+          <div>
+            <h2 className="font-extrabold">{text(lang, "Editor অ্যাক্সেসের আবেদন", "Editor access requests")}</h2>
+            <p className="mt-1 text-xs text-stone-500">
+              {text(lang, "অনুমোদন করলে আবেদনকারীর দেওয়া পাসওয়ার্ডে Editor অ্যাকাউন্ট তৈরি হবে।", "Approval creates an Editor account using the password the applicant submitted.")}
+            </p>
+          </div>
+          <span className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-bold text-[#8F0A1F]">
+            {requestsQuery.data?.length ?? 0} {text(lang, "অপেক্ষমাণ", "pending")}
+          </span>
+        </div>
+        {requestMessage && <p className="border-b border-rose-100 bg-rose-50/60 px-5 py-3 text-sm text-[#8F0A1F]" role="status">{requestMessage}</p>}
+        {requestsQuery.isLoading ? (
+          <div className="animate-pulse space-y-3 p-5" aria-label="Loading access requests">
+            <div className="h-12 rounded-xl bg-rose-50" /><div className="h-12 rounded-xl bg-rose-50" />
+          </div>
+        ) : requestsQuery.isError ? (
+          <div className="p-6 text-sm text-stone-600" role="alert">
+            <p>{text(lang, "আবেদনগুলো লোড করা যায়নি।", "Could not load editor access requests.")}</p>
+            <button type="button" onClick={() => requestsQuery.refetch()} className="mt-3 rounded-full border border-rose-200 px-4 py-2 text-xs font-bold text-[#8F0A1F]">{text(lang, "আবার চেষ্টা করুন", "Try again")}</button>
+          </div>
+        ) : !requestsQuery.data?.length ? (
+          <p className="p-6 text-sm text-stone-500">{text(lang, "কোনো অপেক্ষমাণ আবেদন নেই।", "There are no pending requests.")}</p>
+        ) : (
+          <div className="divide-y divide-rose-50">
+            {requestsQuery.data.map((request) => (
+              <article key={request.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div className="min-w-0">
+                  <p className="break-all text-sm font-bold text-[#30131a]">{request.email}</p>
+                  <p className="mt-1 text-xs text-stone-500">{text(lang, "জমা হয়েছে", "Submitted")}: {new Date(request.createdAt).toLocaleDateString(lang === "bn" ? "bn-BD" : "en-BD", { dateStyle: "medium" })}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => handleReviewRequest(request.id, "approve")} disabled={reviewRequest.isPending} className="rounded-full bg-[#C8102E] px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50" data-testid="button-approve-editor-request">{text(lang, "অনুমোদন", "Approve")}</button>
+                  <button type="button" onClick={() => handleReviewRequest(request.id, "reject")} disabled={reviewRequest.isPending} className="rounded-full border border-rose-200 px-4 py-2.5 text-xs font-bold text-[#8F0A1F] disabled:opacity-50" data-testid="button-reject-editor-request">{text(lang, "প্রত্যাখ্যান", "Reject")}</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="overflow-hidden rounded-2xl border border-rose-100 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-100 p-4 sm:p-5">

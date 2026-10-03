@@ -118,6 +118,28 @@ export const adminUsersTable = pgTable(
   (table) => [index("rcy_admin_user_role_idx").on(table.role)],
 );
 
+export const editorAccessRequestsTable = pgTable(
+  "rcy_editor_access_requests",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash"),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: text("reviewed_by"),
+  },
+  (table) => [
+    uniqueIndex("rcy_editor_access_email_uq").on(table.email),
+    index("rcy_editor_access_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const insertContentItemSchema = createInsertSchema(contentItemsTable).omit({
   updatedAt: true,
 });

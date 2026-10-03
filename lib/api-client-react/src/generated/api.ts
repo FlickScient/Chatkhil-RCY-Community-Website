@@ -38,6 +38,9 @@ import type {
   ContentItem,
   CreateAdminContentParams,
   CreateAdminUserInput,
+  EditorAccessRequest,
+  EditorAccessRequestDecisionInput,
+  EditorAccessRequestInput,
   GetAdminApplicationsParams,
   GetAdminContentParams,
   GetPublicContentParams,
@@ -976,6 +979,260 @@ export const useChangeAdminPassword = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getChangeAdminPasswordMutationOptions(options));
+    }
+
+export const getSubmitEditorAccessRequestUrl = () => {
+
+
+
+
+  return `/api/admin/editor-access-requests`
+}
+
+/**
+ * @summary Request editor access
+ */
+export const submitEditorAccessRequest = async (editorAccessRequestInput: EditorAccessRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<SuccessMessage> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SuccessMessage>(getSubmitEditorAccessRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(editorAccessRequestInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitEditorAccessRequestMutationKey = () => ['submitEditorAccessRequest'] as const;
+
+export const getSubmitEditorAccessRequestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitEditorAccessRequest>>, TError,SubmitEditorAccessRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitEditorAccessRequest>>, TError,SubmitEditorAccessRequestMutationVariables, TContext> => {
+
+const mutationKey = getSubmitEditorAccessRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitEditorAccessRequest>>, SubmitEditorAccessRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitEditorAccessRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitEditorAccessRequestMutationResult = NonNullable<Awaited<ReturnType<typeof submitEditorAccessRequest>>>
+    export type SubmitEditorAccessRequestMutationBody = BodyType<EditorAccessRequestInput>
+    export type SubmitEditorAccessRequestMutationError = ErrorType<unknown>
+    export type SubmitEditorAccessRequestMutationVariables = {data: BodyType<EditorAccessRequestInput>}
+
+    /**
+ * @summary Request editor access
+ */
+export const useSubmitEditorAccessRequest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitEditorAccessRequest>>, TError,SubmitEditorAccessRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitEditorAccessRequest>>,
+        TError,
+        SubmitEditorAccessRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitEditorAccessRequestMutationOptions(options));
+    }
+
+export const getGetEditorAccessRequestsUrl = () => {
+
+
+
+
+  return `/api/admin/editor-access-requests`
+}
+
+/**
+ * @summary List pending editor access requests for Super Admins
+ */
+export const getEditorAccessRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<EditorAccessRequest[]> => {
+
+  return customFetch<EditorAccessRequest[]>(getGetEditorAccessRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEditorAccessRequestsQueryKey = () => {
+    return [
+    `/api/admin/editor-access-requests`
+    ] as const;
+    }
+
+
+export const getGetEditorAccessRequestsQueryOptions = <TData = Awaited<ReturnType<typeof getEditorAccessRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEditorAccessRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEditorAccessRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEditorAccessRequests>>> = ({ signal }) => getEditorAccessRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEditorAccessRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEditorAccessRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof getEditorAccessRequests>>>
+export type GetEditorAccessRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending editor access requests for Super Admins
+ */
+
+export function useGetEditorAccessRequests<TData = Awaited<ReturnType<typeof getEditorAccessRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEditorAccessRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEditorAccessRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewEditorAccessRequestUrl = (requestId: string,) => {
+
+
+
+
+  return `/api/admin/editor-access-requests/${requestId}`
+}
+
+/**
+ * @summary Approve or reject an editor access request
+ */
+export const reviewEditorAccessRequest = async (requestId: string,
+    editorAccessRequestDecisionInput: EditorAccessRequestDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<SuccessMessage> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SuccessMessage>(getReviewEditorAccessRequestUrl(requestId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(editorAccessRequestDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getReviewEditorAccessRequestMutationKey = () => ['reviewEditorAccessRequest'] as const;
+
+export const getReviewEditorAccessRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewEditorAccessRequest>>, TError,ReviewEditorAccessRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewEditorAccessRequest>>, TError,ReviewEditorAccessRequestMutationVariables, TContext> => {
+
+const mutationKey = getReviewEditorAccessRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewEditorAccessRequest>>, ReviewEditorAccessRequestMutationVariables> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  reviewEditorAccessRequest(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewEditorAccessRequestMutationResult = NonNullable<Awaited<ReturnType<typeof reviewEditorAccessRequest>>>
+    export type ReviewEditorAccessRequestMutationBody = BodyType<EditorAccessRequestDecisionInput>
+    export type ReviewEditorAccessRequestMutationError = ErrorType<void>
+    export type ReviewEditorAccessRequestMutationVariables = {requestId: string;data: BodyType<EditorAccessRequestDecisionInput>}
+
+    /**
+ * @summary Approve or reject an editor access request
+ */
+export const useReviewEditorAccessRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewEditorAccessRequest>>, TError,ReviewEditorAccessRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewEditorAccessRequest>>,
+        TError,
+        ReviewEditorAccessRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReviewEditorAccessRequestMutationOptions(options));
     }
 
 export const getGetAdminUsersUrl = () => {

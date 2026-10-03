@@ -25,6 +25,12 @@ import {
   CreateAdminContentResponse,
   CreateAdminUserBody,
   CreateAdminUserResponse,
+  GetEditorAccessRequestsResponse,
+  ReviewEditorAccessRequestBody,
+  ReviewEditorAccessRequestParams,
+  ReviewEditorAccessRequestResponse,
+  SubmitEditorAccessRequestBody,
+  SubmitEditorAccessRequestResponse,
   DeleteAdminUserParams,
   DeleteAdminUserResponse,
   DeleteAdminContentParams,
@@ -65,6 +71,7 @@ import {
   applicationsTable,
   contactMessagesTable,
   contentItemsTable,
+  editorAccessRequestsTable,
   db,
   siteDataTable,
 } from "@workspace/db";
@@ -506,7 +513,153 @@ router.get("/admin/auth/me", async (request, response): Promise<void> => {
   response.json(GetAdminSessionResponse.parse(admin));
 });
 
+router.post("/admin/editor-access-requests", async (request, response): Promise<void> => {
+  const parsed = SubmitEditorAccessRequestBody.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const acknowledgement = {
+    success: true,
+    message: "Request received. If approved, you can sign in with this email and password.",
+  };
+  const [existingUser] = await db
+    .select({ email: adminUsersTable.email })
+    .from(adminUsersTable)
+    .where(eq(adminUsersTable.email, email))
+    .limit(1);
+  if (existingUser) {
+    response.status(202).json(SubmitEditorAccessRequestResponse.parse(acknowledgement));
+    return;
+  }
+
+  const [existingRequest] = await db
+    .select()
+    .from(editorAccessRequestsTable)
+    .where(eq(editorAccessRequestsTable.email, email))
+    .limit(1);
+  if (existingRequest && existingRequest.status !== "rejected") {
+    response.status(202).json(SubmitEditorAccessRequestResponse.parse(acknowledgement));
+    return;
+  }
+
+  const passwordHash = hashPassword(parsed.data.password);
+  if (existingRequest) {
+    await db
+      .update(editorAccessRequestsTable)
+      .set({ passwordHash, status: "pending", createdAt: new Date(), reviewedAt: null, reviewedBy: null })
+      .where(eq(editorAccessRequestsTable.id, existingRequest.id));
+  } else {
+    try {
+      await db.insert(editorAccessRequestsTable).values({
+        id: randomUUID(), email, passwordHash, status: "pending",
+      });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+        response.status(202).json(SubmitEditorAccessRequestResponse.parse(acknowledgement));
+        return;
+      }
+      throw error;
+    }
+  }
+
+  response.status(202).json(SubmitEditorAccessRequestResponse.parse(acknowledgement));
+});
+
 protectedRouter.use(requireAdmin);
+
+protectedRouter.get(
+  "/admin/editor-access-requests",
+  requireSuperAdmin,
+  async (_request, response): Promise<void> => {
+    const requests = await db
+      .select({ id: editorAccessRequestsTable.id, email: editorAccessRequestsTable.email, createdAt: editorAccessRequestsTable.createdAt })
+      .from(editorAccessRequestsTable)
+      .where(eq(editorAccessRequestsTable.status, "pending"))
+      .orderBy(desc(editorAccessRequestsTable.createdAt));
+    response.json(GetEditorAccessRequestsResponse.parse(requests.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+    }))));
+  },
+);
+
+protectedRouter.patch(
+  "/admin/editor-access-requests/:requestId",
+  requireSuperAdmin,
+  async (request, response): Promise<void> => {
+    const params = ReviewEditorAccessRequestParams.safeParse(request.params);
+    const parsed = ReviewEditorAccessRequestBody.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      response.status(400).json({ error: "Invalid editor access review." });
+      return;
+    }
+
+    const admin = response.locals.admin as AdminSession;
+    let result: "success" | "missing" | "invalid_password";
+    try {
+      result = await db.transaction(async (tx) => {
+        const [editorRequest] = await tx
+          .select()
+          .from(editorAccessRequestsTable)
+          .where(and(
+            eq(editorAccessRequestsTable.id, params.data.requestId),
+            eq(editorAccessRequestsTable.status, "pending"),
+          ))
+          .limit(1);
+        if (!editorRequest) return "missing";
+        if (parsed.data.decision === "approve" && !editorRequest.passwordHash) return "invalid_password";
+
+        const approved = parsed.data.decision === "approve";
+        const [updated] = await tx
+          .update(editorAccessRequestsTable)
+          .set({
+            status: approved ? "approved" : "rejected",
+            passwordHash: null,
+            reviewedAt: new Date(),
+            reviewedBy: admin.email,
+          })
+          .where(and(
+            eq(editorAccessRequestsTable.id, editorRequest.id),
+            eq(editorAccessRequestsTable.status, "pending"),
+          ))
+          .returning({ id: editorAccessRequestsTable.id });
+        if (!updated) return "missing";
+
+        if (approved) {
+          const [createdUser] = await tx
+            .insert(adminUsersTable)
+            .values({ email: editorRequest.email, passwordHash: editorRequest.passwordHash!, role: "editor" })
+            .onConflictDoNothing()
+            .returning({ email: adminUsersTable.email });
+          if (!createdUser) throw new Error("EDITOR_ACCESS_ACCOUNT_EXISTS");
+        }
+        return "success";
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "EDITOR_ACCESS_ACCOUNT_EXISTS") {
+        response.status(409).json({ error: "An admin with that email already exists." });
+        return;
+      }
+      throw error;
+    }
+
+    if (result === "missing") {
+      response.status(404).json({ error: "Editor access request is no longer pending." });
+      return;
+    }
+    if (result === "invalid_password") {
+      response.status(409).json({ error: "Editor access request is incomplete." });
+      return;
+    }
+    response.json(ReviewEditorAccessRequestResponse.parse({
+      success: true,
+      message: parsed.data.decision === "approve" ? "Editor access approved." : "Editor access request rejected.",
+    }));
+  },
+);
 
 protectedRouter.post(
   "/admin/auth/change-password",
