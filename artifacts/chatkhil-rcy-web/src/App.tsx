@@ -448,7 +448,7 @@ function PaperForm({applicationId,photo,data}:{applicationId:string;photo?:strin
   const L=({t,v,w}:{t:string;v?:string;w?:string})=><div className="pf-row" style={{flex:w?`0 0 ${w}`:'1 1 0'}}><span>{t}ঃ</span><b>{v||''}</b></div>;
   const addr=(a:any)=><><div className="pf-line"><L t="গ্রাম" v={a.village}/></div><div className="pf-line"><L t="বাড়ীর নাম" v={a.houseName}/></div><div className="pf-line"><L t="ডাকঘর" v={a.postOffice}/><L t="উপজেলা" v={a.upazila}/></div><div className="pf-line"><L t="জেলা" v={a.district}/></div></>;
   const sig=(t:string,sub?:string)=><div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:4,minWidth:160}}>{t}</div>{sub&&<div style={{fontSize:11}}>({sub})</div>}</div>;
-  return <div className="paper-form" style={{fontFamily:"'Hind Siliguri',sans-serif",color:'#000',padding:'8mm 10mm'}}>
+  return <div className="paper-form" style={{fontFamily:"'Hind Siliguri',sans-serif",color:'#000',padding:'5mm 8mm'}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
       <img src="/assets/bdrcs-logo.png" alt="" style={{height:80}}/>
       <div style={{textAlign:'center',flex:1}}><div style={{fontSize:26,fontWeight:700}}>চাটখিল পাঁচগাঁও মাহবুব সরকারি কলেজ</div><div>চাটখিল, নোয়াখালী।</div><div>ওয়েব সাইট: cmpe.edu.bd</div><div>E-mail: Chatkhilcollege2023@gmail.com</div><div>ফোন: ০৩২২৭৫০০২</div></div>
