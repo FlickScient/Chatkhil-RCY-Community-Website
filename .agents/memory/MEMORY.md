@@ -1,0 +1,1 @@
+- [Homepage change boundaries](chatkhil-homepage-boundaries.md) — Keep changes visual, CMS-backed, and isolated from API, admin, and deployment configuration.
