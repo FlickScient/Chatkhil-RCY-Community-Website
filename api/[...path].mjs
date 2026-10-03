@@ -1,4 +1,4 @@
-import app from "../artifacts/api-server/src/app.ts";
+import app from "./_app.mjs";
 
 const runExpress = app;
 
