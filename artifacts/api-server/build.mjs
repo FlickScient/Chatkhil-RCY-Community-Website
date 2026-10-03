@@ -118,13 +118,23 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     },
   };
 
- // Build both entry points together into dist/, so the pino worker-thread
-  // files are only generated once and shared by both outputs.
+// Full server entry point (used for `pnpm start`) — keeps the pino
+  // pretty-print plugin for local/dev logging.
   await esbuild({
     ...sharedOptions,
-    entryPoints: [
-      path.resolve(artifactDir, "src/index.ts"),
-      path.resolve(artifactDir, "src/app.ts"),
-    ],
+    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+  });
+
+  // App-only entry point for the Vercel function. Production logging never
+  // uses the pino-pretty transport, so we drop that plugin here — it's
+  // incompatible with single-file output, which is what lets us emit this
+  // as a direct sibling of the function handler (no extra Vercel config
+  // needed for Vercel to find it).
+  const apiAppOptions = { ...sharedOptions, plugins: [] };
+  delete apiAppOptions.outdir;
+  await esbuild({
+    ...apiAppOptions,
+    outfile: path.resolve(artifactDir, "../../api/_app.mjs"),
+    entryPoints: [path.resolve(artifactDir, "src/app.ts")],
   });
 }
