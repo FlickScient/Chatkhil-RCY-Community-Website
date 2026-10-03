@@ -134,3 +134,8 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     entryPoints: [path.resolve(artifactDir, "src/app.ts")],
   });
 }
+
+buildAll().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
