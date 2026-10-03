@@ -361,7 +361,7 @@ function AdminApplications({lang,applicationId}:{lang:Lang;applicationId:string|
   if(query.isLoading)return <Skeletons/>;
   if(query.isError)return <ErrorState lang={lang} onRetry={()=>query.refetch()}/>;
   if(!routeRecord)return <div className="rounded-2xl border border-rose-100 bg-white p-6"><p className="font-bold">{copy(lang,'আবেদনটি পাওয়া যায়নি।','Application not found.')}</p><button onClick={()=>setSelected(null)} className="mt-4 rounded-full bg-[#C8102E] px-4 py-2.5 text-sm font-bold text-white">{copy(lang,'সব আবেদন দেখুন','Back to applications')}</button></div>;
-  return <AdminApplicationDetail record={routeRecord} lang={lang} onBack={()=>setSelected(null)}/>;
+  return <ErrorBoundary resetKey={routeRecord.id} FallbackComponent={({error,resetError})=><div className="rounded-2xl border border-red-200 bg-white p-6"><p className="font-bold text-red-700">{copy(lang,'এই আবেদনটি দেখানো যায়নি।','This application could not be displayed.')}</p><p className="mt-2 text-xs text-stone-500">{error.message}</p><button onClick={()=>{resetError();setSelected(null)}} className="mt-4 rounded-full bg-[#C8102E] px-4 py-2.5 text-sm font-bold text-white">{copy(lang,'সব আবেদন দেখুন','Back to applications')}</button><pre className="mt-4 max-h-80 overflow-auto rounded-xl bg-stone-50 p-3 text-left text-[10px] text-stone-700">{JSON.stringify(routeRecord,null,2)}</pre></div>}><AdminApplicationDetail record={routeRecord} lang={lang} onBack={()=>setSelected(null)}/></ErrorBoundary>;
  }
  return <><div className="flex flex-wrap items-end justify-between gap-4"><div><div className="eyebrow">{copy(lang,'সদস্য আবেদন','MEMBERSHIP')}</div><h1 className="display mt-2 text-3xl font-extrabold">{copy(lang,'আবেদন পর্যালোচনা','Review applications')}</h1><p className="mt-2 text-sm text-stone-500">{copy(lang,'আবেদন খুঁজুন, দেখুন এবং সিদ্ধান্ত নিন।','Find, review and make decisions on applications.')}</p></div><div className="flex items-center gap-3"><button onClick={()=>exportApplicationsCsv(rows)} disabled={!rows.length} className="rounded-full bg-[#C8102E] px-4 py-2 text-sm font-bold text-white disabled:opacity-40" data-testid="button-export-csv">{copy(lang,'Excel / CSV ডাউনলোড','Download Excel / CSV')}</button><div className="rounded-xl bg-white px-4 py-2 text-sm"><b>{rows.length}</b> {copy(lang,'টি রেকর্ড','records')}</div></div></div>
  <div className="mt-6 flex flex-wrap gap-3 rounded-2xl border border-rose-100 bg-white p-4"><label className="relative min-w-[210px] flex-1"><Search size={15} className="absolute left-3 top-3 text-stone-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={copy(lang,'নাম, রোল বা আবেদন নম্বর','Name, roll or application ID')} className="w-full rounded-xl border border-rose-100 py-2.5 pl-9 pr-3 text-sm" data-testid="input-application-search"/></label><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-rose-100 px-3 text-sm" aria-label={copy(lang,'স্ট্যাটাস ফিল্টার','Filter by status')} data-testid="filter-application-status"><option value="">{copy(lang,'সব অবস্থা','All statuses')}</option><option value="pending">{copy(lang,'অপেক্ষমাণ','Pending')}</option><option value="approved">{copy(lang,'অনুমোদিত','Approved')}</option><option value="rejected">{copy(lang,'প্রত্যাখ্যাত','Declined')}</option></select></div>
@@ -376,14 +376,25 @@ function AdminApplicationDetail({record,lang,onBack}:{record:any;lang:Lang;onBac
   applicationId:copy(lang,'আবেদন নম্বর','Application ID'),academicYear:copy(lang,'শিক্ষাবর্ষ','Academic year'),name:copy(lang,'পূর্ণ নাম','Full name'),rollNo:copy(lang,'রোল নম্বর','Roll number'),branch:copy(lang,'বিভাগ / শাখা','Branch'),dateOfBirth:copy(lang,'জন্মতারিখ','Date of birth'),nationality:copy(lang,'জাতীয়তা','Nationality'),religion:copy(lang,'ধর্ম','Religion'),fatherName:copy(lang,'পিতার নাম','Father’s name'),motherName:copy(lang,'মাতার নাম','Mother’s name'),guardianName:copy(lang,'অভিভাবকের নাম','Guardian’s name'),guardianMobile:copy(lang,'অভিভাবকের মোবাইল','Guardian mobile'),permanentAddress:copy(lang,'স্থায়ী ঠিকানা','Permanent address'),presentAddress:copy(lang,'বর্তমান ঠিকানা','Present address'),sameAddress:copy(lang,'দুই ঠিকানা একই','Addresses are the same'),guardianConsent:copy(lang,'অভিভাবকের সম্মতি','Guardian consent'),declaration:copy(lang,'ঘোষণা','Declaration'),village:copy(lang,'গ্রাম / মহল্লা','Village / neighbourhood'),houseName:copy(lang,'বাড়ীর নাম','House name'),postOffice:copy(lang,'ডাকঘর','Post office'),upazila:copy(lang,'উপজেলা','Upazila'),district:copy(lang,'জেলা','District'),
  };
  const labelFor=(key:string)=>labels[key]||key.replace(/([A-Z])/g,' $1').replace(/^./,first=>first.toUpperCase());
- const printable=(value:any):string=>{
-  if(value===null||value===undefined||value==='')return '—';
-  if(typeof value==='boolean')return value?copy(lang,'হ্যাঁ','Yes'):copy(lang,'না','No');
-  if(Array.isArray(value))return value.map(printable).join(', ');
-  if(typeof value==='object')return Object.entries(value).map(([key,nested])=>`${labelFor(key)}: ${printable(nested)}`).join(' · ');
-  return String(value);
+ const printable=(value:any,depth=0):string=>{
+  try{
+   if(value===null||value===undefined||value==='')return '—';
+   if(typeof value==='boolean')return value?copy(lang,'হ্যাঁ','Yes'):copy(lang,'না','No');
+   if(typeof value==='number')return String(value);
+   if(typeof value==='string')return value;
+   if(depth>4)return '—';
+   if(value instanceof Date)return value.toLocaleString(lang==='bn'?'bn-BD':'en-BD');
+   if(Array.isArray(value))return value.length?value.map(v=>printable(v,depth+1)).join(', '):'—';
+   if(typeof value==='object'){
+    const keys=Object.keys(value);
+    return keys.length?keys.map(key=>`${labelFor(key)}: ${printable((value as any)[key],depth+1)}`).join(' · '):'—';
+   }
+   return String(value);
+  }catch{
+   return '—';
+  }
  };
- const entries=Object.entries(data).filter(([key])=>key!=='photoPath');
+ const entries=Object.entries(data).filter(([key,value])=>key!=='photoPath'&&!(typeof value==='string'&&value.length>500&&value.startsWith('data:')));
  const decide=(status:'approved'|'rejected')=>{
   setDecisionError('');
   update.mutate({id:record.id,data:{status,note}},{onSuccess:()=>{client.invalidateQueries({queryKey:getGetAdminApplicationsQueryKey()});client.invalidateQueries({queryKey:getGetAdminOverviewQueryKey()});onBack()},onError:()=>setDecisionError(copy(lang,'সিদ্ধান্ত সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।','Could not save the decision. Please try again.'))});
@@ -444,10 +455,12 @@ function exportApplicationsCsv(rows:any[]){
   const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`rcy-applications-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
 }
 function PaperForm({applicationId,photo,data}:{applicationId:string;photo?:string;data:any}) {
-  const p=data.permanentAddress||{};const c=data.presentAddress||{};
-  const L=({t,v,w}:{t:string;v?:string;w?:string})=><div className="pf-row" style={{flex:w?`0 0 ${w}`:'1 1 0'}}><span>{t}ঃ</span><b>{v||''}</b></div>;
-  const addr=(a:any)=><><div className="pf-line"><L t="গ্রাম" v={a.village}/></div><div className="pf-line"><L t="বাড়ীর নাম" v={a.houseName}/></div><div className="pf-line"><L t="ডাকঘর" v={a.postOffice}/><L t="উপজেলা" v={a.upazila}/></div><div className="pf-line"><L t="জেলা" v={a.district}/></div></>;
-  const sig=(t:string,sub?:string)=><div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:4,minWidth:160}}>{t}</div>{sub&&<div style={{fontSize:11}}>({sub})</div>}</div>;
+  const safe=(v:any):string=>v===null||v===undefined?'':typeof v==='string'?v:typeof v==='number'||typeof v==='boolean'?String(v):'';
+  const p=data.permanentAddress&&typeof data.permanentAddress==='object'?data.permanentAddress:{};
+  const c=data.presentAddress&&typeof data.presentAddress==='object'?data.presentAddress:{};
+  const L=({t,v,w}:{t:string;v?:string;w?:string})=><div className="pf-row" style={{flex:w?`0 0 ${w}`:'1 1 0'}}><span>{t}ঃ</span><b>{safe(v)}</b></div>;
+  const addr=(a:any)=><><div className="pf-line"><L t="গ্রাম" v={safe(a.village)}/></div><div className="pf-line"><L t="বাড়ীর নাম" v={safe(a.houseName)}/></div><div className="pf-line"><L t="ডাকঘর" v={safe(a.postOffice)}/><L t="উপজেলা" v={safe(a.upazila)}/></div><div className="pf-line"><L t="জেলা" v={safe(a.district)}/></div></>;
+  const sig=(t:string,sub?:string)=>{const s=safe(sub);return <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:4,minWidth:160}}>{t}</div>{s&&<div style={{fontSize:11}}>({s})</div>}</div>;};
   return <div className="paper-form" style={{fontFamily:"'Hind Siliguri',sans-serif",color:'#000',padding:'5mm 8mm'}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
       <img src="/assets/bdrcs-logo.png" alt="" style={{height:80}}/>
