@@ -353,7 +353,7 @@ router.post("/applications", async (request, response): Promise<void> => {
         name: data.name,
         guardianMobile: data.guardianMobile,
         photoPath: data.photoPath,
-        data: normalizeStoredContent(data) as Record<string, unknown>,
+        data: normalizeStoredContent((({ photoPath: _photo, ...rest }) => rest)(data)) as Record<string, unknown>,
       })
       .returning();
     response.status(201).json(
