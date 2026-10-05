@@ -1,0 +1,113 @@
+/* ===== fx2: extra motion layer (all effects respect prefers-reduced-motion) ===== */
+
+/* 1. Scroll progress bar */
+.fx2-progress{position:fixed;left:0;top:0;height:3px;width:100%;z-index:60;pointer-events:none;
+  background:linear-gradient(90deg,#c8102e,#f4b28e);transform-origin:0 50%;
+  transform:scaleX(var(--fx2-progress,0));box-shadow:0 0 10px rgba(200,16,46,.55)}
+
+/* 2. Hero parallax */
+.fx2-parallax-img{transform:translate3d(0,min(calc(var(--fx2-scroll,0) * .22px),220px),0) scale(1.14);will-change:transform}
+.fx2-parallax-content{transform:translate3d(0,calc(var(--fx2-scroll,0) * -.06px),0);
+  opacity:calc(1 - var(--fx2-scroll,0) / 850);will-change:transform,opacity}
+
+/* 3. Word-by-word headline */
+.fx2-word{display:inline-block}
+.fx2-word-auto{opacity:0;animation:fx2-word-in .8s cubic-bezier(.2,.8,.2,1) both}
+.home-pending .fx2-word{opacity:0;transform:translateY(.55em)}
+.home-revealed .fx2-word{animation:fx2-word-in .8s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fx2-word-in{from{opacity:0;transform:translateY(.55em) rotate(2deg)}to{opacity:1;transform:none}}
+
+/* 4. Card tilt shine */
+.fx2-tilt{will-change:transform}
+.fx2-tilt::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:5;opacity:0;
+  background:radial-gradient(circle at var(--fx2-mx,50%) var(--fx2-my,50%),rgba(255,255,255,.24),transparent 55%);
+  transition:opacity .3s}
+.fx2-tilt:hover::after{opacity:1}
+
+/* 5. Blood-drop divider */
+.fx2-drop-wrap{position:relative;height:0;z-index:20;pointer-events:none}
+.fx2-drop-svg{position:absolute;left:50%;top:0;width:44px;height:88px;transform:translate(-50%,-50%);overflow:visible}
+.fx2-drop{fill:#c8102e;opacity:0}
+.fx2-ripple{fill:none;stroke:#c8102e;stroke-width:1.2;opacity:0;transform-box:view-box;transform-origin:40px 80px}
+.fx2-drop-wrap.on .fx2-drop{animation:fx2-drop 4s cubic-bezier(.5,0,.9,.6) infinite}
+.fx2-drop-wrap.on .fx2-ripple{animation:fx2-ripple 4s ease-out infinite}
+.fx2-drop-wrap.on .fx2-ripple.r2{animation-delay:.25s}
+@keyframes fx2-drop{
+  0%{opacity:0;transform:translateY(0) scale(.6)}
+  8%{opacity:1;transform:translateY(2px) scale(1)}
+  52%{opacity:1;transform:translateY(40px) scale(.95,1.15)}
+  58%{opacity:0;transform:translateY(46px) scale(.4)}
+  100%{opacity:0;transform:translateY(46px) scale(.4)}}
+@keyframes fx2-ripple{
+  0%,52%{opacity:0;transform:scale(1)}
+  56%{opacity:.85;transform:scale(1)}
+  88%,100%{opacity:0;transform:scale(7,6)}}
+
+/* 6. Heartbeat line */
+.fx2-ecg{position:absolute;left:0;right:0;top:50%;height:130px;transform:translateY(-50%);width:100%;pointer-events:none;z-index:0}
+.fx2-ecg path{fill:none;stroke:#8b1028;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
+.fx2-ecg .base{opacity:.07}
+.fx2-ecg .pulse{opacity:.4;stroke:#c8102e;stroke-dasharray:.16 1.3;stroke-dashoffset:.16;animation:fx2-ecg 4.2s linear infinite}
+@keyframes fx2-ecg{to{stroke-dashoffset:-1.3}}
+
+/* 7. Image clip reveal (only while a home section is pending/revealed) */
+.home-pending .fx2-reveal-img{clip-path:inset(0 100% 0 0)}
+.home-revealed .fx2-reveal-img{clip-path:inset(0 0 0 0);
+  transition:clip-path 1.1s cubic-bezier(.7,0,.2,1),transform .7s ease,opacity .7s ease}
+
+/* 8. Custom cursor */
+.fx2-cursor-dot,.fx2-cursor-ring{position:fixed;left:0;top:0;pointer-events:none;z-index:9999;opacity:0;transition:opacity .25s}
+.fx2-cursor-dot{width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#c8102e}
+.fx2-cursor-ring{width:36px;height:36px;margin:-18px 0 0 -18px}
+.fx2-cursor-ring i{display:block;width:100%;height:100%;border-radius:50%;border:1.5px solid rgba(200,16,46,.7);
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),background .25s,border-color .25s}
+.fx2-cursor-dot.vis,.fx2-cursor-ring.vis{opacity:1}
+.fx2-cursor-ring.is-link i{transform:scale(1.7);background:rgba(200,16,46,.1);border-color:rgba(200,16,46,.9)}
+.fx2-cursor-ring.is-down i{transform:scale(.7)}
+.fx2-cursor-ring.is-link.is-down i{transform:scale(1.3)}
+.fx2-cursor-dot.is-text,.fx2-cursor-ring.is-text{opacity:0!important}
+body.fx2-cursor-on,body.fx2-cursor-on *{cursor:none!important}
+body.fx2-cursor-on input,body.fx2-cursor-on textarea,body.fx2-cursor-on [contenteditable="true"]{cursor:text!important}
+body.fx2-cursor-on select{cursor:default!important}
+
+/* 9. Back-to-top with progress ring */
+.fx2-top{position:fixed;right:18px;bottom:18px;z-index:55;width:52px;height:52px;border-radius:50%;
+  display:grid;place-items:center;color:#f5e9db;background:#8b1028;border:0;
+  box-shadow:0 10px 26px rgba(43,23,25,.3);opacity:0;transform:translateY(16px) scale(.85);
+  pointer-events:none;transition:opacity .3s,transform .3s cubic-bezier(.2,.8,.2,1),background .2s}
+.fx2-top.show{opacity:1;transform:none;pointer-events:auto}
+.fx2-top:hover{background:#641025;transform:translateY(-3px)}
+.fx2-top svg{width:44px;height:44px;overflow:visible}
+.fx2-top .track{fill:none;stroke:rgba(245,233,219,.2);stroke-width:2.5}
+.fx2-top .bar{fill:none;stroke:#f4b28e;stroke-width:2.5;stroke-linecap:round;
+  stroke-dasharray:131.95;stroke-dashoffset:calc(131.95px * (1 - var(--fx2-progress,0)));
+  transform:rotate(-90deg);transform-origin:24px 24px}
+
+/* 10. First-load curtain */
+.fx2-loader{position:fixed;inset:0;z-index:9990;display:grid;place-items:center;color:#f5d9c6;
+  background:radial-gradient(circle at 50% 40%,#5b1226,#2d0a14 70%)}
+.fx2-loader.hide{transform:translateY(-102%);border-radius:0 0 50% 50% / 0 0 9vw 9vw;
+  transition:transform .8s cubic-bezier(.76,0,.24,1),border-radius .8s}
+.fx2-loader-inner{display:grid;justify-items:center;gap:18px}
+.fx2-loader-mark{width:96px;height:auto;animation:fx2-mark 1s cubic-bezier(.2,.8,.2,1) both}
+.fx2-loader-text{font-size:11px;letter-spacing:.32em;opacity:0;animation:fx2-fade .6s .35s forwards}
+.fx2-loader-bar{width:120px;height:2px;background:rgba(245,217,198,.18);overflow:hidden;border-radius:2px}
+.fx2-loader-bar span{display:block;height:100%;background:#f4b28e;transform:scaleX(0);transform-origin:0 50%;animation:fx2-bar 1s .1s ease-in-out forwards}
+@keyframes fx2-mark{from{opacity:0;transform:scale(.7) rotate(-14deg)}to{opacity:1;transform:none}}
+@keyframes fx2-fade{to{opacity:.75}}
+@keyframes fx2-bar{to{transform:scaleX(1)}}
+
+@media (max-width:640px){.fx2-top{right:12px;bottom:12px;width:46px;height:46px}.fx2-top svg{width:38px;height:38px}}
+
+@media (prefers-reduced-motion:reduce){
+  .fx2-progress{transition:none}
+  .fx2-parallax-img{transform:scale(1.02)!important}
+  .fx2-parallax-content{transform:none!important;opacity:1!important}
+  .fx2-word,.fx2-word-auto{animation:none!important;opacity:1!important;transform:none!important}
+  .fx2-drop-wrap .fx2-drop{animation:none!important;opacity:1;transform:translateY(34px)}
+  .fx2-drop-wrap .fx2-ripple{animation:none!important}
+  .fx2-ecg .pulse{animation:none!important}
+  .fx2-reveal-img{clip-path:none!important;transition:none!important}
+  .fx2-top{transition:opacity .2s}
+  .fx2-loader{display:none}
+}
