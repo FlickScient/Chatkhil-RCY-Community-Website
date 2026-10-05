@@ -4,6 +4,8 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import './fx.css';
+import { Magnetic, PageTransition, CrescentIntro, Confetti, HeroGlow, JoinBanner } from './fx';
 import AdminUsersPage from '@/pages/admin-users';
 import EditorAccessRequestForm from '@/pages/editor-access-request';
 import { Route, Switch, Link, useLocation, useParams, Router as WouterRouter } from 'wouter';
@@ -79,9 +81,9 @@ function App() {
   const [lang,setLang] = useState<Lang>(() => (localStorage.getItem('rcy-lang') as Lang) || 'bn');
   useEffect(()=>{localStorage.setItem('rcy-lang',lang);document.documentElement.lang=lang;},[lang]);
   const toggle=()=>setLang(v=>v==='bn'?'en':'bn');
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/,'')}><RouteRenderer lang={lang} toggle={toggle}/></WouterRouter><Toaster/></TooltipProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/,'')}><RouteRenderer lang={lang} toggle={toggle}/></WouterRouter><CrescentIntro/><Toaster/></TooltipProvider></QueryClientProvider>;
 }
-function RouteRenderer({lang,toggle}:{lang:Lang;toggle:()=>void}) {
+function RouteRenderer({lang,toggle}:{lang:Lang;toggle:()=>void}) 
   const [path]=useLocation();
   const adminPath=path.replace(/^\/admin(?=\/|$)/i,'/admin').replace(/\/+$/,'')||'/';
   const adminKey=adminPath.toLowerCase();
