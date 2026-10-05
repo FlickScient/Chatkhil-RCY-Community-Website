@@ -1,0 +1,75 @@
+/* ── Page transition ─────────────────────────── */
+.page-enter { animation: page-in .6s cubic-bezier(.2,.8,.2,1) backwards; }
+@keyframes page-in { from { opacity: 0; transform: translateY(22px); filter: blur(5px); } }
+
+/* ── Staggered cascade (works with your existing .home-reveal-on-scroll observer) ── */
+.stagger > * { --i: 0; }
+.stagger > *:nth-child(2) { --i: 1 } .stagger > *:nth-child(3) { --i: 2 } .stagger > *:nth-child(4) { --i: 3 }
+.stagger > *:nth-child(5) { --i: 4 } .stagger > *:nth-child(6) { --i: 5 } .stagger > *:nth-child(7) { --i: 6 }
+.stagger > *:nth-child(n+8) { --i: 7 }
+.home-pending .stagger > * { opacity: 0; transform: translateY(40px) scale(.96); }
+.home-revealed .stagger > *,
+.stagger-now > * { animation: card-rise .8s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i, 0) * 110ms); }
+.stagger-now > * { --i: 0; }
+.stagger-now > *:nth-child(2) { --i: 1 } .stagger-now > *:nth-child(3) { --i: 2 } .stagger-now > *:nth-child(4) { --i: 3 }
+.stagger-now > *:nth-child(5) { --i: 4 } .stagger-now > *:nth-child(n+6) { --i: 5 }
+@keyframes card-rise { from { opacity: 0; transform: translateY(40px) scale(.96); } }
+
+/* ── Impact heartbeat ───────────────────────── */
+.impact-num { display: inline-block; }
+.impact-ring { opacity: 0; pointer-events: none; }
+.impact-live .impact-num { animation: heartbeat 1.4s ease-out 1.15s both; }
+.impact-live .impact-ring { animation: ring-out 1.4s ease-out 1.15s forwards; }
+@keyframes heartbeat {
+  0% { transform: scale(1); } 14% { transform: scale(1.18); text-shadow: 0 0 26px rgba(200,16,46,.6); }
+  28% { transform: scale(1); } 42% { transform: scale(1.1); text-shadow: 0 0 18px rgba(200,16,46,.4); }
+  70% { transform: scale(1); } 100% { transform: scale(1); text-shadow: 0 0 0 transparent; }
+}
+@keyframes ring-out { 0% { opacity: .75; transform: scale(1); } 100% { opacity: 0; transform: scale(1.3); } }
+
+/* ── Crescent intro ─────────────────────────── */
+.rcy-intro { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: #3a0c19; cursor: pointer; transition: opacity .6s ease, transform .6s ease; }
+.rcy-intro.out { opacity: 0; transform: scale(1.05); pointer-events: none; }
+.rcy-stroke { fill: none; stroke: #f5e9db; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.15s cubic-bezier(.6,0,.3,1) forwards; }
+.rcy-stroke.cross { stroke: #ff5a73; stroke-width: 6; animation-delay: .75s; animation-duration: .6s; }
+.rcy-fill { opacity: 0; animation: fill-in .55s ease 1.2s forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fill-in { to { opacity: 1; } }
+
+/* ── Cursor glow ────────────────────────────── */
+.hero-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .5s; mix-blend-mode: screen;
+  background: radial-gradient(520px circle at var(--gx, 70%) var(--gy, 40%), rgba(255,160,120,.28), rgba(255,90,115,.10) 40%, transparent 70%); }
+@media (hover: none) { .hero-glow { display: none; } }
+
+/* ── CTA sheen ──────────────────────────────── */
+.btn-sheen { position: relative; overflow: hidden; }
+.btn-sheen::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.7) 50%, transparent 70%); transform: translateX(-130%); }
+.btn-sheen:hover::after { transform: translateX(130%); transition: transform .9s ease; }
+
+/* ── Join banner ────────────────────────────── */
+.shimmer-text { background: linear-gradient(100deg, #fff5e9 35%, #f4b28e 50%, #fff5e9 65%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shim 6s linear infinite; }
+@keyframes shim { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.jb-ring { position: absolute; right: 12%; top: 50%; width: 30rem; height: 30rem; margin: -15rem 0 0; border-radius: 50%; border: 1.5px solid rgba(245,233,219,.35); opacity: 0; animation: jb-ring 5.6s ease-out infinite; }
+@keyframes jb-ring { 0% { transform: scale(.25); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
+.jb-drop { position: absolute; bottom: -30px; width: var(--s); height: var(--s); opacity: 0; animation: jb-rise linear infinite; }
+.jb-drop i { display: block; width: 100%; height: 100%; background: radial-gradient(circle at 35% 30%, #ff8a9b, #c8102e 70%); border-radius: 50% 50% 50% 0; transform: rotate(135deg); }
+@keyframes jb-rise { 0% { transform: translate3d(0,0,0); opacity: 0; } 12% { opacity: .75; } 85% { opacity: .5; } 100% { transform: translate3d(24px,-640px,0); opacity: 0; } }
+.jb-emblem { filter: drop-shadow(0 0 40px rgba(255,90,115,.45)); animation: jb-float 6s ease-in-out infinite; }
+@keyframes jb-float { 50% { transform: translateY(-14px) rotate(-3deg); } }
+.jb-marquee { overflow: hidden; }
+.jb-marquee-track { display: flex; width: max-content; animation: marq 34s linear infinite; }
+.jb-marquee:hover .jb-marquee-track { animation-play-state: paused; }
+@keyframes marq { to { transform: translateX(-50%); } }
+
+/* ── /join page banner extras ───────────────── */
+[data-testid="join-banner"] img { animation: kenburns 18s ease-in-out infinite alternate; }
+@keyframes kenburns { to { transform: scale(1.1) translate(-1.5%, -1%); } }
+
+/* ── Respect reduced motion ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter, .stagger > *, .stagger-now > *, .impact-num, .impact-ring, .shimmer-text, .jb-ring, .jb-drop, .jb-emblem,
+  .jb-marquee-track, .btn-sheen::after, [data-testid="join-banner"] img { animation: none !important; transition: none !important; }
+  .home-pending .stagger > * { opacity: 1; transform: none; }
+  .rcy-intro { display: none; }
+  .shimmer-text { color: #fff5e9; background: none; }
+}
